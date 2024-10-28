@@ -5,6 +5,7 @@ from sqlalchemy.exc import IntegrityError
 
 class Student(db.Model, SerializerMixin):
     __tablename__ = 'students'
+    serialize_rules = ('-country', '-user',)
     
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
@@ -13,16 +14,15 @@ class Student(db.Model, SerializerMixin):
     student_id = db.Column(db.String(20), unique=True, nullable=False)
     enrolled_date = db.Column(db.DateTime, default=datetime.now())
     country_id = db.Column(db.Integer, db.ForeignKey('countries.id'), nullable=False)
-    country = db.relationship('Country', cascade="all")
+    country = db.relationship('Country', back_populates='students')
 
     # Foreign key to User model
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), unique=True)
-    user = db.relationship('User', back_populates='student', uselist=False, cascade="all")
 
     @staticmethod
     def generate_student_id(country_code, count):
         """Generates a student ID using the country code and student count."""
-        return f"{country_code}{str(count).zfill(5)}"
+        return f"{country_code}{str(count).zfill(3)}"  # Changed to zfill(3) to match '001' format
 
     @classmethod
     def create_with_unique_id(cls, name, phone_number, email, country_name):
@@ -61,44 +61,45 @@ class Student(db.Model, SerializerMixin):
         db.session.commit()
         
         return new_student
-
+    
     def __repr__(self):
         return f'<Student {self.name}, {self.student_id}>'
 
-class Country(db.Model):
+class Country(db.Model, SerializerMixin):
     __tablename__ = 'countries'
+    serialize_rules = ('-students',) 
     
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(50), unique=True, nullable=False)
     code = db.Column(db.String(2), unique=True, nullable=False)  # KE, US, etc.
+
+    students = db.relationship('Student', back_populates='country')
+
     
     def __repr__(self):
         return f"<Country {self.name} ({self.code})>"
 
-class StudentIDCounter(db.Model):
+class StudentIDCounter(db.Model, SerializerMixin):
     __tablename__ = 'student_id_counters'
     
     id = db.Column(db.Integer, primary_key=True)
     country_id = db.Column(db.Integer, db.ForeignKey('countries.id'), nullable=False, unique=True)
     count = db.Column(db.Integer, default=0, nullable=False)
     
-    country = db.relationship('Country', cascade="all")
+    country = db.relationship('Country')
 
     def __repr__(self):
         return f"<StudentIDCounter {self.country.code} - {self.count}>"
 
 class User(db.Model, SerializerMixin):
     __tablename__ = 'users'
-    __exclude__ = ['password']  # Exclude password from serialized output
+    serialize_rules = ('-_password',)
 
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(50), nullable=False, unique=True)
     username = db.Column(db.String(50), nullable=False)
     _password = db.Column('password', db.String(255), nullable=True)
     role = db.Column(db.String(50), nullable=False)
-
-    # Relationship with Student
-    student = db.relationship('Student', back_populates='user', uselist=False, cascade="all")
 
     @property
     def password(self):

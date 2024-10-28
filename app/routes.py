@@ -13,6 +13,7 @@ student_parser = reqparse.RequestParser()
 student_parser.add_argument('name', type=str, required=True, help='Name of the student')
 student_parser.add_argument('email', type=str, required=True, help='Email of the student')
 student_parser.add_argument('phone_number', type=str, required=True, help='Phone number of the student')
+student_parser.add_argument('country_name', type=str, required=True, help='Country of the student')
 
 user_parser = reqparse.RequestParser()
 user_parser.add_argument('email', type=str, required=True, help='Email of the user')
@@ -35,19 +36,14 @@ class StudentListResource(Resource):
     def post(self):
         """Create a new student."""
         data = student_parser.parse_args()
-        student_count = Student.query.count() + 1  # Get the count for student_id generation
-        campus_code = "KE"  # Replace with the actual logic to get the campus code
-        student_id = Student.generate_student_id(campus_code, student_count)
-
-        new_student = Student(
+        
+        # Create a new student with a unique ID
+        new_student = Student.create_with_unique_id(
             name=data['name'],
-            email=data['email'],
             phone_number=data['phone_number'],
-            student_id=student_id,  # Use generated student_id
-            enrolled_date=datetime.now() 
+            email=data['email'],
+            country_name=data['country_name']
         )
-        db.session.add(new_student)
-        db.session.commit()
         return new_student.to_dict(), 201
 
 @students_ns.route('/<int:student_id>', endpoint='students/<int:student_id>')
@@ -128,7 +124,6 @@ class UserResource(Resource):
         db.session.commit()
         return '', 204
 
-
 @users_ns.route('/login', endpoint='login')
 class UserLoginResource(Resource):
     def post(self):
@@ -139,13 +134,5 @@ class UserLoginResource(Resource):
         if not user or not user.check_password(data['password']):
             return {'message': 'Invalid username or password'}, 401
         
-        # Generate a JWT access token
-        access_token = create_access_token(identity=user.id, expires_delta=timedelta(hours=1))
-
-        return {
-            'access_token': access_token,
-            'username': user.username,
-            'id': user.id,
-            'role': user.role, 
-            'message': 'Login successful'
-        }, 2
+        access_token = create_access_token(identity=user.id)
+        return {'access_token': access_token}, 200
