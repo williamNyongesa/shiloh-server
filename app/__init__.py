@@ -4,6 +4,7 @@ from flask_jwt_extended import JWTManager
 from flask_bcrypt import Bcrypt
 from flask_migrate import Migrate
 from flask_restx import Api
+from flask_cors import CORS
 from app.config import Config
 
 
@@ -24,8 +25,14 @@ def create_app():
     bcrypt.init_app(app)
     migrate.init_app(app, db)
 
-    from app.routes import students_ns
+    # Apply CORS to the app
+    CORS(app, origins=["http://localhost:3000","http://localhost:3001"], supports_credentials=True)
+
+    from app.routes import students_ns, users_ns, teachers_ns,finances_ns
     api.add_namespace(students_ns)
+    api.add_namespace(users_ns)
+    api.add_namespace(teachers_ns)
+    api.add_namespace(finances_ns)
 
     
     return app
