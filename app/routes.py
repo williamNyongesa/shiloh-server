@@ -163,3 +163,4 @@ class EnrollmentCoursesResource(Resource):
             all_courses.extend(enrollment.courses.split(", "))
         unique_courses = list(set(all_courses))
         return {"courses": unique_courses}, 200
+        print("this is it")
