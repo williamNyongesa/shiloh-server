@@ -1,5 +1,5 @@
 from app import db, app
-from app.models import Student, Finance, Teacher, User, Country, StudentIDCounter
+from app.models import Student, Finance, Teacher, User, Country, StudentIDCounter, Enrollment
 from faker import Faker
 from datetime import datetime
 
@@ -160,6 +160,28 @@ def seed_student_id_counters():
     db.session.commit()
     print("Student ID Counters seeded successfully.")
 
+def seed_enrollments():
+    with app.app_context():
+        students = Student.query.all()  # Fetch all students from the database
+        courses_list = ["Math", "Science", "History", "English", "Geography", "Art"]
+
+        enrollments = []
+
+        for student in students:
+            for _ in range(fake.random_int(min=1, max=3)):
+                courses = ", ".join(fake.random_elements(courses_list, unique=True, length=fake.random_int(min=1, max=3)))
+                enrollment = Enrollment(
+                    student_id=student.id,
+                    courses=courses,
+                    phone_number=student.phone_number,  # Use student's phone number
+                    enrollment_date=fake.date_time_this_year()  # Random date this year
+                )
+                enrollments.append(enrollment)
+
+        db.session.add_all(enrollments)
+        db.session.commit()
+        print("enrollments seeded successfully.")
+
 if __name__ == "__main__":
     with app.app_context():
         reset_database()
@@ -169,3 +191,4 @@ if __name__ == "__main__":
         seed_students()
         seed_finance()
         seed_student_id_counters() 
+        seed_enrollments()

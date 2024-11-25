@@ -13,7 +13,7 @@ class Student(db.Model, SerializerMixin):
     
     # Basic information fields
     name = db.Column(db.String(100), nullable=False)
-    phone_number = db.Column(db.String(15), nullable=False)
+    phone_number = db.Column(db.String(15), nullable=False, unique=True)
     email = db.Column(db.String(120), unique=True, nullable=False)
     student_id = db.Column(db.String(20), unique=True, nullable=False)
     
@@ -30,6 +30,8 @@ class Student(db.Model, SerializerMixin):
 
     # Relationship with Finance model
     finances = db.relationship('Finance', back_populates='student')
+    enrollments = db.relationship('Enrollment', back_populates='student', cascade='all, delete-orphan')
+
 
     # Static method to generate unique student ID
     @staticmethod
@@ -214,3 +216,22 @@ class Finance(db.Model, SerializerMixin):
 
 # # Adding back reference in Student model for finances
 # Student.finances = db.relationship('Finance', back_populates='student')
+
+class Enrollment(db.Model, SerializerMixin):
+    _tablename_ = 'enrollments'
+    serialize_rules = ('-student',)  # Avoid circular references during serialization
+
+    # Primary key
+    id = db.Column(db.Integer, primary_key=True)
+
+    # Foreign key to the Student model
+    student_id = db.Column(db.Integer, db.ForeignKey('students.id'), nullable=False)
+    student = db.relationship('Student', back_populates='enrollments')
+
+    # Attributes
+    courses = db.Column(db.String(255), nullable=False)  # e.g., "Math, Science, History"
+    phone_number = db.Column(db.String(15), nullable=False)  # Phone number of the student
+    enrollment_date = db.Column(db.DateTime, default=datetime.now)  # Defaults to current datetime
+
+    def _repr_(self):
+        return f'<Enrollment {self.courses} for Student ID {self.student_id}>'
