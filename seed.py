@@ -67,7 +67,7 @@ def seed_users():
     ]
     
     for user in users:
-        user.password = "defaultpassword"  # Setting a default password
+        user.password = "defaultpassword"  
 
     db.session.add_all(users)
     db.session.commit()
@@ -124,14 +124,14 @@ def seed_students():
     print("Students seeded successfully.")
 
 def seed_finance():
-    students = Student.query.all()  # Fetch all students
-    users = User.query.filter_by(role="admin").all()  # Fetch admin users for handling finance records
+    students = Student.query.all() 
+    users = User.query.filter_by(role="admin").all()  
     
     transaction_types = ['tuition', 'maintanance', 'fee']  
     finances = []
 
     for student in students:
-        for _ in range(fake.random_int(min=1, max=3)):  # Create 1 to 3 records per student
+        for _ in range(fake.random_int(min=1, max=3)): 
             finance_record = Finance(
                 student_id=student.id,
                 user_id=fake.random_element(users).id, 
@@ -146,13 +146,13 @@ def seed_finance():
     db.session.commit()
     print("Finance records seeded successfully.")
 def seed_student_id_counters():
-    countries = Country.query.all()  # Fetch all countries from the database
+    countries = Country.query.all() 
 
     student_id_counters = []
     for country in countries:
         student_id_counter = StudentIDCounter(
             country_id=country.id,
-            count=0  # Initialize count to 0
+            count=0  
         )
         student_id_counters.append(student_id_counter)
 
@@ -162,7 +162,7 @@ def seed_student_id_counters():
 
 def seed_enrollments():
     with app.app_context():
-        students = Student.query.all()  # Fetch all students from the database
+        students = Student.query.all()  
         courses_list = ["Math", "Science", "History", "English", "Geography", "Art"]
 
         enrollments = []
@@ -173,8 +173,8 @@ def seed_enrollments():
                 enrollment = Enrollment(
                     student_id=student.id,
                     courses=courses,
-                    phone_number=student.phone_number,  # Use student's phone number
-                    enrollment_date=fake.date_time_this_year()  # Random date this year
+                    phone_number=student.phone_number,  
+                    enrollment_date=fake.date_time_this_year() 
                 )
                 enrollments.append(enrollment)
 

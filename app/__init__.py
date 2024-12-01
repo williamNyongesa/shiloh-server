@@ -6,6 +6,8 @@ from flask_migrate import Migrate
 from flask_restx import Api
 from flask_cors import CORS
 from app.config import Config
+from dotenv import load_dotenv
+import os
 
 # Initialize extensions
 db = SQLAlchemy()
@@ -29,7 +31,7 @@ def create_app():
     # Apply CORS to the app
     CORS(
         app,
-        origins=["http://localhost:3000", "http://localhost:3001"],
+        origins = os.environ["CORS_FILTERS"],
         supports_credentials=True,
     )
 
