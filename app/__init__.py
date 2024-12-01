@@ -31,7 +31,7 @@ def create_app():
     # Apply CORS to the app
     CORS(
         app,
-        origins = os.environ["CORS_FILTERS"],
+        origins = os.environ["CORS_FILTER"],
         supports_credentials=True,
     )
 
