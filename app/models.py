@@ -111,20 +111,21 @@ class StudentIDCounter(db.Model, SerializerMixin):
     def __repr__(self):
         return f"<StudentIDCounter {self.country.code} - {self.count}>"
 
-# User Model
-class User(db.Model, SerializerMixin):
+class User(db.Model):
     __tablename__ = 'users'
-    serialize_rules = ('-_password',)  # Serialization rule to hide password
+    
+    # Serialization rule to exclude password from being serialized
+    serialize_rules = ('-_password',)
 
     # Primary key
     id = db.Column(db.Integer, primary_key=True)
     
     # Email and username
     email = db.Column(db.String(50), nullable=False, unique=True)
-    username = db.Column(db.String(50), nullable=False)
+    username = db.Column(db.String(50), nullable=False, unique=True)
     
     # Password (stored hashed) and user role
-    _password = db.Column('password', db.String(255), nullable=True)
+    _password = db.Column('password', db.String(255), nullable=False)
     role = db.Column(db.String(50), nullable=False)
 
     # Password property for secure handling

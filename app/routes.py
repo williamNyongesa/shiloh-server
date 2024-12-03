@@ -97,15 +97,28 @@ class UserListResource(Resource):
         db.session.commit()
         return new_user.to_dict(), 201
 
+from flask_jwt_extended import create_access_token
+
 @users_ns.route('/login')
 class UserLoginResource(Resource):
     def post(self):
+        # Parse the login credentials from the request
         data = login_parser.parse_args()
+        
         user = User.query.filter_by(username=data['username']).first()
+
         if not user or not user.check_password(data['password']):
             return {'message': 'Invalid username or password'}, 401
+        
         access_token = create_access_token(identity=user.id)
-        return {'access_token': access_token}, 200
+
+        return {
+            'access_token': access_token,
+            'username': user.username,
+            'email': user.email,
+            'role': user.role
+        }, 200
+
 
 # Teacher Routes
 @teachers_ns.route('')
