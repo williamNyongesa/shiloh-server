@@ -1,3 +1,8 @@
+from flask_jwt_extended import create_access_token
+from flask_bcrypt import Bcrypt
+from flask_restx import Resource
+from flask_jwt_extended import create_access_token
+from flask_jwt_extended import create_access_token
 from datetime import datetime
 from flask_restx import Namespace, Resource, reqparse
 from flask_jwt_extended import create_access_token
@@ -82,7 +87,6 @@ class StudentResource(Resource):
         db.session.commit()
         return '', 204
 
-# User Routes
 @users_ns.route('')
 class UserListResource(Resource):
     def get(self):
@@ -92,32 +96,39 @@ class UserListResource(Resource):
     def post(self):
         data = user_parser.parse_args()
         new_user = User(email=data['email'], username=data['username'], role=data['role'])
-        new_user.password = data['password']  # Hash password here
+        new_user.password = new_user.generate_password_hash(data['password'])  # Hash password here
         db.session.add(new_user)
         db.session.commit()
-        return new_user.to_dict(), 201
+        return new_user.to_dict(), 201  # Return the newly created user as a dictionary
 
-from flask_jwt_extended import create_access_token
+
+
+
+
+bcrypt = Bcrypt()  # Make sure this is initialized properly
 
 @users_ns.route('/login')
 class UserLoginResource(Resource):
     def post(self):
-        # Parse the login credentials from the request
-        data = login_parser.parse_args()
-        
-        user = User.query.filter_by(username=data['username']).first()
+        data = login_parser.parse_args()  # Assuming login_parser exists to parse the login fields
+        username = data['username']
+        password = data['password']
 
-        if not user or not user.check_password(data['password']):
-            return {'message': 'Invalid username or password'}, 401
-        
-        access_token = create_access_token(identity=user.id)
+        # Fetch the user from the database
+        user = User.query.filter_by(username=username).first()
 
-        return {
-            'access_token': access_token,
-            'username': user.username,
-            'email': user.email,
-            'role': user.role
-        }, 200
+        if user and user.check_password(password):  # Using the check_password method from User model
+            # Generate the access token after successful authentication
+            access_token = create_access_token(identity=user.id)
+            return {
+                'access_token': access_token,
+                'username': user.username,
+                'email': user.email,
+                'role': user.role
+            }, 200
+        else:
+            return {'error': 'Invalid username or password'}, 401
+
 
 
 # Teacher Routes

@@ -114,39 +114,42 @@ class StudentIDCounter(db.Model, SerializerMixin):
 class User(db.Model):
     __tablename__ = 'users'
     
-    # Serialization rule to exclude password from being serialized
     serialize_rules = ('-_password',)
 
-    # Primary key
     id = db.Column(db.Integer, primary_key=True)
-    
-    # Email and username
     email = db.Column(db.String(50), nullable=False, unique=True)
     username = db.Column(db.String(50), nullable=False, unique=True)
-    
-    # Password (stored hashed) and user role
     _password = db.Column('password', db.String(255), nullable=False)
     role = db.Column(db.String(50), nullable=False)
 
-    # Password property for secure handling
     @property
     def password(self):
         raise AttributeError("Password is not a readable attribute.")
 
     @password.setter
     def password(self, password):
-        """Hashes the password and stores it."""
         self._password = bcrypt.generate_password_hash(password).decode('utf-8')
 
     def check_password(self, password):
-        """Checks a password against the stored hash."""
         return bcrypt.check_password_hash(self._password, password)
+
+    def generate_password_hash(self, password):
+        return bcrypt.generate_password_hash(password).decode('utf-8')
 
     def __repr__(self):
         return f'<User {self.username}>'
 
     def __str__(self):
         return f'{self.username} - {self.role}'
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'email': self.email,
+            'username': self.username,
+            'role': self.role
+        }
+
 
 # Teacher Model
 class Teacher(db.Model, SerializerMixin):

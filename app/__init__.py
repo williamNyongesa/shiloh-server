@@ -9,6 +9,9 @@ from app.config import Config
 from dotenv import load_dotenv
 import os
 
+# Load environment variables from .env file
+load_dotenv()
+
 # Initialize extensions
 db = SQLAlchemy()
 jwt = JWTManager()
@@ -29,9 +32,10 @@ def create_app():
     migrate.init_app(app, db)
 
     # Apply CORS to the app
+    origins = os.getenv("CORS_FILTER", "").split(",")  # Ensure a default value if the variable isn't set
     CORS(
         app,
-        origins = os.environ["CORS_FILTER"],
+        origins=origins,
         supports_credentials=True,
     )
 

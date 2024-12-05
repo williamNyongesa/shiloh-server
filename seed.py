@@ -106,11 +106,17 @@ def seed_students():
         country = fake.random_element(countries)
         teacher = fake.random_element(teachers)
 
+        # Ensure data does not exceed column limits
+        student_id = Student.generate_student_id(country.code, i)[:15]  # Ensure student_id fits within 15 chars
+        phone_number = fake.phone_number()[:15]  # Truncate phone number to 15 characters max
+        name = fake.name()[:50]  # Truncate name if longer than 50 characters
+        email = user.email[:100]  # Truncate email if longer than 100 characters
+
         student = Student(
-            name=fake.name(),
-            phone_number=fake.phone_number(),
-            email=user.email,
-            student_id=Student.generate_student_id(country.code, i),
+            name=name,
+            phone_number=phone_number,
+            email=email,
+            student_id=student_id,
             enrolled_date=datetime.now(),
             country_id=country.id,
             user_id=user.id,
@@ -124,27 +130,33 @@ def seed_students():
     print("Students seeded successfully.")
 
 def seed_finance():
-    students = Student.query.all() 
-    users = User.query.filter_by(role="admin").all()  
+    students = Student.query.all()
+    users = User.query.filter_by(role="admin").all()
     
-    transaction_types = ['tuition', 'maintanance', 'fee']  
+    transaction_types = ['tuition', 'maintenance', 'fee']
     finances = []
+    records_to_generate = 150  # Define the target number of records
+    generated_records = 0  # Counter to keep track of the generated records
 
-    for student in students:
-        for _ in range(fake.random_int(min=1, max=3)): 
-            finance_record = Finance(
-                student_id=student.id,
-                user_id=fake.random_element(users).id, 
-                amount=fake.random_number(digits=4), 
-                transaction_type=fake.random_element(transaction_types),  
-                date=fake.date_time_this_year(),  
-                description=fake.sentence(nb_words=6)  
-            )
-            finances.append(finance_record)
+    # Loop until we've generated the required number of records
+    while generated_records < records_to_generate:
+        student = fake.random_element(students)  # Randomly select a student
+        finance_record = Finance(
+            student_id=student.id,
+            user_id=fake.random_element(users).id,
+            amount=fake.random_number(digits=4),
+            transaction_type=fake.random_element(transaction_types),
+            date=fake.date_time_this_year(),
+            description=fake.sentence(nb_words=6)
+        )
+        finances.append(finance_record)
+        generated_records += 1  # Increment the counter
 
     db.session.add_all(finances)
     db.session.commit()
-    print("Finance records seeded successfully.")
+    print(f"{generated_records} Finance records seeded successfully.")
+
+
 def seed_student_id_counters():
     countries = Country.query.all() 
 
