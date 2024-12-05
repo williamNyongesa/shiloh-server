@@ -32,12 +32,14 @@ def create_app():
     migrate.init_app(app, db)
 
     # Apply CORS to the app
-    origins = os.getenv("CORS_FILTER", "").split(",")  # Ensure a default value if the variable isn't set
-    CORS(
-        app,
-        origins=origins,
-        supports_credentials=True,
-    )
+    cors_origins = os.getenv('CORS_FILTER', 'http://localhost:3000,http://localhost:3001').split(',')
+
+    # Enable CORS for the allowed origins
+    cors = CORS(app, resources={
+        r"/*": {
+            "origins": cors_origins
+        }
+    })
 
     # Register namespaces
     from app.routes import (

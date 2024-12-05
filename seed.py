@@ -1,3 +1,4 @@
+# import pytest
 from app import db, app
 from app.models import Student, Finance, Teacher, User, Country, StudentIDCounter, Enrollment
 from faker import Faker
@@ -5,12 +6,22 @@ from datetime import datetime
 
 fake = Faker()
 
+# Reset the database using the fixture setup
+# @pytest.fixture(scope='function')
 def reset_database():
+    """Fixture to reset the database before each test."""
     with app.app_context():
-        db.drop_all()
-        db.create_all()
-        print("Database reset successfully.")
+        # Drop all tables, and reset foreign key constraints
+        db.engine.execute("SET foreign_key_checks = 0")  # Disable foreign key checks
+        db.drop_all()  # Drop all tables
+        db.create_all()  # Recreate tables
+        db.engine.execute("SET foreign_key_checks = 1")  # Enable foreign key checks
 
+        print("Database reset successfully.")
+        yield db  # This will allow access to the database session during testing
+        db.session.remove()  # Ensure we clean up the session after test execution
+
+# Seed data functions
 def seed_countries():
     countries = [
         {'name': 'Kenya', 'code': 'KE'},
@@ -39,35 +50,15 @@ def seed_countries():
 
 def seed_users():
     users = [
-        User(
-            email=fake.email(),
-            username=fake.user_name(),
-            role="admin"
-        ),
-        User(
-            email=fake.email(),
-            username=fake.user_name(),
-            role="teacher"
-        ),
-        User(
-            email=fake.email(),
-            username=fake.user_name(),
-            role="teacher"
-        ),
-        User(
-            email=fake.email(),
-            username=fake.user_name(),
-            role="student"
-        ),
-        User(
-            email=fake.email(),
-            username=fake.user_name(),
-            role="student"
-        )
+        User(email=fake.email(), username=fake.user_name(), role="admin"),
+        User(email=fake.email(), username=fake.user_name(), role="teacher"),
+        User(email=fake.email(), username=fake.user_name(), role="teacher"),
+        User(email=fake.email(), username=fake.user_name(), role="student"),
+        User(email=fake.email(), username=fake.user_name(), role="student"),
     ]
     
     for user in users:
-        user.password = "defaultpassword"  
+        user.password = "defaultpassword"  # Set default password for all users
 
     db.session.add_all(users)
     db.session.commit()
@@ -156,7 +147,6 @@ def seed_finance():
     db.session.commit()
     print(f"{generated_records} Finance records seeded successfully.")
 
-
 def seed_student_id_counters():
     countries = Country.query.all() 
 
@@ -173,34 +163,35 @@ def seed_student_id_counters():
     print("Student ID Counters seeded successfully.")
 
 def seed_enrollments():
-    with app.app_context():
-        students = Student.query.all()  
-        courses_list = ["Math", "Science", "History", "English", "Geography", "Art"]
+    students = Student.query.all()  
+    courses_list = ["Math", "Science", "History", "English", "Geography", "Art"]
 
-        enrollments = []
+    enrollments = []
 
-        for student in students:
-            for _ in range(fake.random_int(min=1, max=3)):
-                courses = ", ".join(fake.random_elements(courses_list, unique=True, length=fake.random_int(min=1, max=3)))
-                enrollment = Enrollment(
-                    student_id=student.id,
-                    courses=courses,
-                    phone_number=student.phone_number,  
-                    enrollment_date=fake.date_time_this_year() 
-                )
-                enrollments.append(enrollment)
+    for student in students:
+        for _ in range(fake.random_int(min=1, max=3)):
+            courses = ", ".join(fake.random_elements(courses_list, unique=True, length=fake.random_int(min=1, max=3)))
+            enrollment = Enrollment(
+                student_id=student.id,
+                courses=courses,
+                phone_number=student.phone_number,  
+                enrollment_date=fake.date_time_this_year() 
+            )
+            enrollments.append(enrollment)
 
-        db.session.add_all(enrollments)
-        db.session.commit()
-        print("enrollments seeded successfully.")
+    db.session.add_all(enrollments)
+    db.session.commit()
+    print("Enrollments seeded successfully.")
 
-if __name__ == "__main__":
-    with app.app_context():
-        reset_database()
-        seed_countries()
-        seed_users()
-        seed_teachers()
-        seed_students()
-        seed_finance()
-        seed_student_id_counters() 
-        seed_enrollments()
+# Running the seed functions as part of the fixture setup
+# @pytest.fixture(scope='function')
+def seed_data(reset_database):
+    """Fixture to seed data after resetting the database."""
+    seed_countries()
+    seed_users()
+    seed_teachers()
+    seed_students()
+    seed_finance()
+    seed_student_id_counters() 
+    seed_enrollments()
+    print("Seeding complete.")

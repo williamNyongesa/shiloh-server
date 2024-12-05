@@ -1,13 +1,12 @@
 from flask_jwt_extended import create_access_token
 from flask_bcrypt import Bcrypt
-from flask_restx import Resource
-from flask_jwt_extended import create_access_token
-from flask_jwt_extended import create_access_token
-from datetime import datetime
 from flask_restx import Namespace, Resource, reqparse
-from flask_jwt_extended import create_access_token
+from datetime import datetime
 from app import db
 from app.models import Student, User, Teacher, Finance, Enrollment
+
+# Initialize Bcrypt
+bcrypt = Bcrypt()
 
 # Namespaces
 students_ns = Namespace('students', description='Student management operations')
@@ -87,6 +86,7 @@ class StudentResource(Resource):
         db.session.commit()
         return '', 204
 
+# User Routes
 @users_ns.route('')
 class UserListResource(Resource):
     def get(self):
@@ -96,16 +96,10 @@ class UserListResource(Resource):
     def post(self):
         data = user_parser.parse_args()
         new_user = User(email=data['email'], username=data['username'], role=data['role'])
-        new_user.password = new_user.generate_password_hash(data['password'])  # Hash password here
+        new_user.password = data['password']  # This will trigger the password setter
         db.session.add(new_user)
         db.session.commit()
         return new_user.to_dict(), 201  # Return the newly created user as a dictionary
-
-
-
-
-
-bcrypt = Bcrypt()  # Make sure this is initialized properly
 
 @users_ns.route('/login')
 class UserLoginResource(Resource):
@@ -117,8 +111,7 @@ class UserLoginResource(Resource):
         # Fetch the user from the database
         user = User.query.filter_by(username=username).first()
 
-        if user and user.check_password(password):  # Using the check_password method from User model
-            # Generate the access token after successful authentication
+        if user and bcrypt.check_password_hash(user._password, password):
             access_token = create_access_token(identity=user.id)
             return {
                 'access_token': access_token,
@@ -128,8 +121,6 @@ class UserLoginResource(Resource):
             }, 200
         else:
             return {'error': 'Invalid username or password'}, 401
-
-
 
 # Teacher Routes
 @teachers_ns.route('')
@@ -163,28 +154,51 @@ class FinanceListResource(Resource):
 @enrollments_ns.route('')
 class EnrollmentListResource(Resource):
     def get(self):
+        """Retrieve all enrollments"""
         enrollments = Enrollment.query.all()
         return [enrollment.to_dict() for enrollment in enrollments], 200
 
     def post(self):
+        """Create a new enrollment"""
         data = enrollment_parser.parse_args()
-        new_enrollment = Enrollment(
-            student_id=data['student_id'],
-            courses=data['courses'],
-            phone_number=data['phone_number'],
-            enrollment_date=data.get('enrollment_date', datetime.now())
-        )
-        db.session.add(new_enrollment)
-        db.session.commit()
-        return new_enrollment.to_dict(), 201
+        
+        # Validate that the student exists
+        student = Student.query.get(data['student_id'])
+        if not student:
+            return {'message': 'Student not found'}, 404
+        
+        # Validate required fields
+        if not data['courses'] or not data['phone_number']:
+            return {"message": "Missing required fields: courses or phone_number"}, 400
+
+        try:
+            # Create new enrollment record
+            new_enrollment = Enrollment(
+                student_id=data['student_id'],
+                courses=data['courses'],
+                phone_number=data['phone_number'],
+                enrollment_date=data.get('enrollment_date', datetime.now())
+            )
+            db.session.add(new_enrollment)
+            db.session.commit()
+            return new_enrollment.to_dict(), 201
+        except Exception as e:
+            db.session.rollback()  # Rollback in case of error
+            return {"message": f"Error saving enrollment: {str(e)}"}, 500
 
 @enrollments_ns.route('/courses')
 class EnrollmentCoursesResource(Resource):
     def get(self):
-        enrollments = Enrollment.query.all()
-        all_courses = []
-        for enrollment in enrollments:
-            all_courses.extend(enrollment.courses.split(", "))
-        unique_courses = list(set(all_courses))
-        return {"courses": unique_courses}, 200
-        print("this is it")
+        """Retrieve unique list of courses"""
+        try:
+            enrollments = Enrollment.query.all()
+            all_courses = set()  # Use a set to ensure uniqueness
+
+            # Extract and collect all unique courses
+            for enrollment in enrollments:
+                all_courses.update(enrollment.courses.split(", "))
+
+            return {"courses": list(all_courses)}, 200
+        except Exception as e:
+            return {"message": f"Error retrieving courses: {str(e)}"}, 500
+

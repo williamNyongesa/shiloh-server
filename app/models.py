@@ -32,7 +32,6 @@ class Student(db.Model, SerializerMixin):
     finances = db.relationship('Finance', back_populates='student')
     enrollments = db.relationship('Enrollment', back_populates='student', cascade='all, delete-orphan')
 
-
     # Static method to generate unique student ID
     @staticmethod
     def generate_student_id(country_code, count):
@@ -128,12 +127,15 @@ class User(db.Model):
 
     @password.setter
     def password(self, password):
+        # Hash password securely using bcrypt
         self._password = bcrypt.generate_password_hash(password).decode('utf-8')
 
     def check_password(self, password):
+        # Use bcrypt's check_password_hash directly to compare the hashes
         return bcrypt.check_password_hash(self._password, password)
-
+    
     def generate_password_hash(self, password):
+        # This method is not necessary for checking the password, but it's fine to keep for future use
         return bcrypt.generate_password_hash(password).decode('utf-8')
 
     def __repr__(self):
@@ -199,30 +201,8 @@ class Finance(db.Model, SerializerMixin):
     def __repr__(self):
         return f'<Finance Record: {self.transaction_type} - Amount: {self.amount} for Student ID: {self.student_id}>'
 
-# Admin Model
-# class Admin(db.Model, SerializerMixin):
-#     __tablename__ = 'admins'
-#     serialize_rules = ('-user',)  # Serialization rules to avoid circular references
-
-#     # Primary key
-#     id = db.Column(db.Integer, primary_key=True)
-
-#     # Admin's name and hire date
-#     name = db.Column(db.String(100), nullable=False)
-#     hire_date = db.Column(db.DateTime, default=datetime.now)
-
-#     # Foreign key to User model (one-to-one relationship)
-#     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), unique=True)
-#     user = db.relationship('User', backref=db.backref('admin', uselist=False))
-
-#     def __repr__(self):
-#         return f'<Admin {self.name}>'
-
-# # Adding back reference in Student model for finances
-# Student.finances = db.relationship('Finance', back_populates='student')
-
 class Enrollment(db.Model, SerializerMixin):
-    _tablename_ = 'enrollments'
+    __tablename__ = 'enrollments'
     serialize_rules = ('-student',)  # Avoid circular references during serialization
 
     # Primary key
@@ -237,5 +217,5 @@ class Enrollment(db.Model, SerializerMixin):
     phone_number = db.Column(db.String(15), nullable=False)  # Phone number of the student
     enrollment_date = db.Column(db.DateTime, default=datetime.now)  # Defaults to current datetime
 
-    def _repr_(self):
+    def __repr__(self):
         return f'<Enrollment {self.courses} for Student ID {self.student_id}>'
