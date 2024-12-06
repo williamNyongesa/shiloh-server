@@ -2,24 +2,25 @@ from app import db, bcrypt
 from sqlalchemy_serializer import SerializerMixin
 from datetime import datetime
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy import func
 
 # Student Model
 class Student(db.Model, SerializerMixin):
     __tablename__ = 'students'
-    serialize_rules = ('-country', '-user', '-teacher', '-finances') 
+    serialize_rules = ('-country', '-user', '-teacher', '-finances')
 
     # Primary key
     id = db.Column(db.Integer, primary_key=True)
-    
+
     # Basic information fields
     name = db.Column(db.String(100), nullable=False)
     phone_number = db.Column(db.String(15), nullable=False, unique=True)
     email = db.Column(db.String(120), unique=True, nullable=False)
     student_id = db.Column(db.String(20), unique=True, nullable=False)
-    
-    # Enrollment date, defaults to the current datetime
-    enrolled_date = db.Column(db.DateTime, default=datetime.now())
-    
+
+    # Enrollment date, defaults to the current UTC datetime
+    enrolled_date = db.Column(db.DateTime, default=func.now())
+
     # Foreign key to Country model
     country_id = db.Column(db.Integer, db.ForeignKey('countries.id'), nullable=False)
     country = db.relationship('Country', back_populates='students')
@@ -82,7 +83,7 @@ class Country(db.Model, SerializerMixin):
 
     # Primary key
     id = db.Column(db.Integer, primary_key=True)
-    
+
     # Name and country code
     name = db.Column(db.String(50), unique=True, nullable=False)
     code = db.Column(db.String(2), unique=True, nullable=False)  # KE, US, etc.
@@ -96,20 +97,21 @@ class Country(db.Model, SerializerMixin):
 # StudentIDCounter Model
 class StudentIDCounter(db.Model, SerializerMixin):
     __tablename__ = 'student_id_counters'
-    
+
     # Primary key
     id = db.Column(db.Integer, primary_key=True)
-    
+
     # Country ID and count of students for unique ID generation
     country_id = db.Column(db.Integer, db.ForeignKey('countries.id'), nullable=False, unique=True)
     count = db.Column(db.Integer, default=0, nullable=False)
-    
+
     # Relationship with Country model
     country = db.relationship('Country')
 
     def __repr__(self):
         return f"<StudentIDCounter {self.country.code} - {self.count}>"
 
+# User Model
 class User(db.Model):
     __tablename__ = 'users'
     
@@ -152,19 +154,18 @@ class User(db.Model):
             'role': self.role
         }
 
-
 # Teacher Model
 class Teacher(db.Model, SerializerMixin):
     __tablename__ = 'teachers'
-    serialize_rules = ('-user', '-students ',)  # Serialization rules to avoid circular references
+    serialize_rules = ('-user', '-students')  # Serialization rules to avoid circular references
 
     # Primary key
     id = db.Column(db.Integer, primary_key=True)
-    
+
     # Teacher's name, subject expertise, and hire date
     name = db.Column(db.String(100), nullable=False)
     subject = db.Column(db.String(50), nullable=False)
-    hire_date = db.Column(db.DateTime, default=datetime.now)
+    hire_date = db.Column(db.DateTime, default=func.now())
 
     # Foreign key to User model (one-to-one relationship)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), unique=True)
@@ -195,12 +196,13 @@ class Finance(db.Model, SerializerMixin):
     # Financial details
     amount = db.Column(db.Float, nullable=False)  # Amount of the transaction
     transaction_type = db.Column(db.String(50), nullable=False)  # e.g., 'tuition', 'payment', 'fee'
-    date = db.Column(db.DateTime, default=datetime.now)  # Date of the transaction
+    date = db.Column(db.DateTime, default=func.now())  # Date of the transaction
     description = db.Column(db.String(255))  # Optional description for the transaction
 
     def __repr__(self):
         return f'<Finance Record: {self.transaction_type} - Amount: {self.amount} for Student ID: {self.student_id}>'
 
+# Enrollment Model
 class Enrollment(db.Model, SerializerMixin):
     __tablename__ = 'enrollments'
     serialize_rules = ('-student',)  # Avoid circular references during serialization
@@ -215,7 +217,7 @@ class Enrollment(db.Model, SerializerMixin):
     # Attributes
     courses = db.Column(db.String(255), nullable=False)  # e.g., "Math, Science, History"
     phone_number = db.Column(db.String(15), nullable=False)  # Phone number of the student
-    enrollment_date = db.Column(db.DateTime, default=datetime.now)  # Defaults to current datetime
+    enrollment_date = db.Column(db.DateTime, default=func.now())  # Defaults to current datetime
 
     def __repr__(self):
         return f'<Enrollment {self.courses} for Student ID {self.student_id}>'
