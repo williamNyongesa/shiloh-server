@@ -52,18 +52,39 @@ enrollment_parser.add_argument('enrollment_date', type=datetime, required=False,
 @students_ns.route('')
 class StudentListResource(Resource):
     def get(self):
-        students = Student.query.all()
-        return [student.to_dict() for student in students], 200
+        """Fetch all users"""
+        users = User.query.all()
+        return [user.to_dict() for user in users], 200
 
     def post(self):
-        data = student_parser.parse_args()
-        new_student = Student.create_with_unique_id(
-            name=data['name'],
-            email=data['email'],
-            phone_number=data['phone_number'],
-            country_name=data['country_name']
-        )
-        return new_student.to_dict(), 201
+        """Create a new user"""
+        data = user_parser.parse_args()
+
+        existing_user_by_email = User.query.filter_by(email=data['email']).first()
+        existing_user_by_username = User.query.filter_by(username=data['username']).first()
+
+        if existing_user_by_email:
+            return {'message': 'User with this email already exists.'}, 400  # Bad request
+        
+        if existing_user_by_username:
+            return {'message': 'User with this username already exists.'}, 400  # Bad request
+
+        try:
+            # Create a new user
+            new_user = User(
+                username=data['username'],
+                email=data['email'],
+                password=data['password']  # Ensure to hash the password before saving in a real app
+            )
+            
+            db.session.add(new_user)
+            db.session.commit()
+            
+            return new_user.to_dict(), 201 
+
+        except Exception as e:
+            db.session.rollback()
+            return {'message': f'Error creating user: {str(e)}'}, 500
 
 @students_ns.route('/<int:student_id>')
 class StudentResource(Resource):
