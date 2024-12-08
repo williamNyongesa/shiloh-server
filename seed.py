@@ -1,5 +1,5 @@
 from app import db, app
-from app.models import Student, Finance, Teacher, User, Country, StudentIDCounter, Enrollment
+from app.models import Student, Finance, Teacher, User, Country, StudentIDCounter, Enrollment, Quiz, Question
 from faker import Faker
 from datetime import datetime
 
@@ -192,6 +192,42 @@ def seed_enrollments():
     db.session.commit()
     print("Enrollments seeded successfully.")
 
+# Seed quizzes
+def seed_quizzes():
+    quizzes_data = [
+        {'title': 'Math Quiz', 'questions': [
+            {'text': 'What is 2 + 2?', 'options': '3,4,5,6', 'correct_answer': '4'},
+            {'text': 'What is 3 + 5?', 'options': '7,8,9,10', 'correct_answer': '8'}
+        ]},
+        {'title': 'Science Quiz', 'questions': [
+            {'text': 'What is the chemical symbol for water?', 'options': 'H2O,O2,CO2,H2O2', 'correct_answer': 'H2O'},
+            {'text': 'What planet is closest to the Sun?', 'options': 'Earth,Venus,Mars,Mercury', 'correct_answer': 'Mercury'}
+        ]},
+        {'title': 'History Quiz', 'questions': [
+            {'text': 'Who was the first president of the United States?', 'options': 'Abraham Lincoln,George Washington,Thomas Jefferson,Theodore Roosevelt', 'correct_answer': 'George Washington'},
+            {'text': 'In which year did World War II end?', 'options': '1940,1945,1950,1955', 'correct_answer': '1945'}
+        ]}
+    ]
+
+    for quiz_data in quizzes_data:
+        # Create a new quiz
+        quiz = Quiz(title=quiz_data['title'])
+        db.session.add(quiz)
+        db.session.commit()  # Commit to get the quiz ID for associating questions
+
+        for question_data in quiz_data['questions']:
+            question = Question(
+                text=question_data['text'],
+                options=question_data['options'],
+                correct_answer=question_data['correct_answer'],
+                quiz_id=quiz.id  # Link question to the quiz
+            )
+            db.session.add(question)
+        
+        db.session.commit()
+
+    print("Quizzes seeded successfully.")
+
 if __name__ == "__main__":
     with app.app_context():
         reset_database()
@@ -202,3 +238,4 @@ if __name__ == "__main__":
         seed_finance()
         seed_student_id_counters() 
         seed_enrollments()
+        seed_quizzes()

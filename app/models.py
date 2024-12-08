@@ -221,3 +221,31 @@ class Enrollment(db.Model, SerializerMixin):
 
     def __repr__(self):
         return f'<Enrollment {self.courses} for Student ID {self.student_id}>'
+
+class Quiz(db.Model):
+    __tablename__ = 'quizzes'
+
+    # Primary key
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(255), nullable=False)
+
+    # One-to-many relationship with Question model
+    questions = db.relationship('Question', backref='quiz', lazy=True)
+
+    def __repr__(self):
+        return f'<Quiz {self.title}>'
+
+class Question(db.Model):
+    __tablename__ = 'questions'
+
+    # Primary key
+    id = db.Column(db.Integer, primary_key=True)
+
+    # Question attributes
+    text = db.Column(db.String(255), nullable=False)  # The question text
+    options = db.Column(db.String(255), nullable=False)  # Store options as a comma-separated string
+    correct_answer = db.Column(db.String(255), nullable=False)  # The correct answer
+    quiz_id = db.Column(db.Integer, db.ForeignKey('quizzes.id'), nullable=False)  # Foreign key to Quiz
+
+    def __repr__(self):
+        return f'<Question {self.text}>'

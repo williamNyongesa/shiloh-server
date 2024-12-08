@@ -5,8 +5,24 @@ from datetime import datetime
 from app import db
 from app.models import Student, User, Teacher, Finance, Enrollment
 
+from flask import request, jsonify
+from app import db
+from app.models import Quiz, Question  # Assuming Quiz and Question models exist
 # Initialize Bcrypt
 bcrypt = Bcrypt()
+
+# Quizzes Namespace
+quizzes_ns = Namespace('quizzes', description='Quiz management operations')
+
+# Quiz Parser (if needed)
+quiz_parser = reqparse.RequestParser()
+quiz_parser.add_argument('title', type=str, required=True, help='Title of the quiz')
+
+# Question Parser (if needed)
+question_parser = reqparse.RequestParser()
+question_parser.add_argument('text', type=str, required=True, help='Text of the question')
+question_parser.add_argument('options', type=str, required=True, help='Comma-separated options for the question')
+question_parser.add_argument('correct_answer', type=str, required=True, help='Correct answer for the question')
 
 # Namespaces
 students_ns = Namespace('students', description='Student management operations')
@@ -183,12 +199,10 @@ class EnrollmentListResource(Resource):
         """Create a new enrollment"""
         data = enrollment_parser.parse_args()
         
-        # Validate that the student exists
         student = Student.query.get(data['student_id'])
         if not student:
             return {'message': 'Student not found'}, 404
         
-        # Validate required fields
         if not data['courses'] or not data['phone_number']:
             return {"message": "Missing required fields: courses or phone_number"}, 400
 
@@ -222,4 +236,90 @@ class EnrollmentCoursesResource(Resource):
             return {"courses": list(all_courses)}, 200
         except Exception as e:
             return {"message": f"Error retrieving courses: {str(e)}"}, 500
+
+# Endpoint to fetch quizzes with questions
+@quizzes_ns.route('')
+class QuizListResource(Resource):
+    def get(self):
+        """Fetch all quizzes with their questions"""
+        quizzes = Quiz.query.all()
+        quiz_list = []
+        for quiz in quizzes:
+            questions = [{'id': q.id, 'text': q.text, 'options': q.options.split(', ')} for q in quiz.questions]
+            quiz_list.append({'id': quiz.id, 'title': quiz.title, 'questions': questions})
+        return jsonify({'quizzes': quiz_list})
+
+    def post(self):
+        """Create a new quiz"""
+        data = quiz_parser.parse_args()
+        try:
+            new_quiz = Quiz(title=data['title'])
+            db.session.add(new_quiz)
+            db.session.commit()
+            return jsonify({'message': 'Quiz created', 'quiz': new_quiz.to_dict()}), 201
+        except Exception as e:
+            db.session.rollback()
+            return {'message': f'Error creating quiz: {str(e)}'}, 500
+
+
+# Endpoint to manage quiz questions
+@quizzes_ns.route('/<int:quiz_id>/questions')
+class QuizQuestionListResource(Resource):
+    def get(self, quiz_id):
+        """Fetch all questions for a specific quiz"""
+        quiz = Quiz.query.get_or_404(quiz_id)
+        questions = [{'id': q.id, 'text': q.text, 'options': q.options.split(', ')} for q in quiz.questions]
+        return jsonify({'quiz_id': quiz.id, 'questions': questions})
+
+    def post(self, quiz_id):
+        """Add a question to a quiz"""
+        data = question_parser.parse_args()
+        quiz = Quiz.query.get_or_404(quiz_id)
+
+        try:
+            new_question = Question(
+                text=data['text'],
+                options=data['options'],
+                correct_answer=data['correct_answer'],
+                quiz_id=quiz.id
+            )
+            db.session.add(new_question)
+            db.session.commit()
+            return jsonify({'message': 'Question added', 'question': new_question.to_dict()}), 201
+        except Exception as e:
+            db.session.rollback()
+            return {'message': f'Error adding question: {str(e)}'}, 500
+
+
+# Endpoint to submit answers for a quiz
+@quizzes_ns.route('/submit-quiz', methods=['POST'])
+class SubmitQuizResource(Resource):
+    def post(self):
+        """Submit answers for a quiz and calculate score"""
+        try:
+            data = request.get_json()
+            quiz_id = data.get("quizId")
+            answers = data.get("answers", {})
+
+            # Fetch the quiz by ID
+            quiz = Quiz.query.get(quiz_id)
+
+            if not quiz:
+                return {"error": "Quiz not found"}, 404
+
+            # Calculate the score
+            score = 0
+            total_questions = len(quiz.questions)
+
+            for question in quiz.questions:
+                question_id = str(question.id)  # Convert to string to match the answers' keys
+                correct_answer = question.correct_answer
+                # Compare submitted answers with correct answers
+                if answers.get(question_id) == correct_answer:
+                    score += 1
+
+            return jsonify({"score": score, "total": total_questions}), 200
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
 
