@@ -35,11 +35,7 @@ def create_app():
     cors_origins = os.getenv('CORS_FILTER', 'http://localhost:3000,http://localhost:3001').split(',')
 
     # Enable CORS for the allowed origins
-    cors = CORS(app, resources={
-        r"/*": {
-            "origins": cors_origins
-        }
-    })
+    CORS(app)
 
     # Register namespaces
     from app.routes import (
