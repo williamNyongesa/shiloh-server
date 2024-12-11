@@ -218,9 +218,19 @@ class Enrollment(db.Model, SerializerMixin):
     courses = db.Column(db.String(255), nullable=False)  # e.g., "Math, Science, History"
     phone_number = db.Column(db.String(15), nullable=False)  # Phone number of the student
     enrollment_date = db.Column(db.DateTime, default=func.now())  # Defaults to current datetime
+    document_file = db.Column(db.LargeBinary)  # For storing the uploaded document
 
     def __repr__(self):
         return f'<Enrollment {self.courses} for Student ID {self.student_id}>'
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'student_id': self.student_id,
+            'courses': self.courses,
+            'phone_number': self.phone_number,
+            'enrollment_date': self.enrollment_date.isoformat(),
+            'document_file': self.document_file  # Optionally include the document file data
+        }
 
 class Quiz(db.Model):
     __tablename__ = 'quizzes'

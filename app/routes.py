@@ -188,6 +188,10 @@ class FinanceListResource(Resource):
         return new_finance.to_dict(), 201
 
 # Enrollment Routes
+from werkzeug.utils import secure_filename
+import os
+from io import BytesIO
+
 @enrollments_ns.route('')
 class EnrollmentListResource(Resource):
     def get(self):
@@ -196,30 +200,45 @@ class EnrollmentListResource(Resource):
         return [enrollment.to_dict() for enrollment in enrollments], 200
 
     def post(self):
-        """Create a new enrollment"""
+        """Create a new enrollment with document upload"""
         data = enrollment_parser.parse_args()
-        
+
+        # Retrieve the student
         student = Student.query.get(data['student_id'])
         if not student:
             return {'message': 'Student not found'}, 404
-        
+
         if not data['courses'] or not data['phone_number']:
             return {"message": "Missing required fields: courses or phone_number"}, 400
+        
+        # Retrieve document file from the request
+        document = request.files.get('document_file')  # Assuming the file is sent with the key 'document_file'
 
-        try:
-            # Create new enrollment record
-            new_enrollment = Enrollment(
-                student_id=data['student_id'],
-                courses=data['courses'],
-                phone_number=data['phone_number'],
-                enrollment_date=data.get('enrollment_date', datetime.now())
-            )
-            db.session.add(new_enrollment)
-            db.session.commit()
-            return new_enrollment.to_dict(), 201
-        except Exception as e:
-            db.session.rollback()  # Rollback in case of error
-            return {"message": f"Error saving enrollment: {str(e)}"}, 500
+        if document:
+            try:
+                # Ensure that the file is a valid document (you can add checks for file type here)
+                filename = secure_filename(document.filename)
+                file_data = document.read()  # Get the binary data of the file
+                
+                # Create the new enrollment with document file
+                new_enrollment = Enrollment(
+                    student_id=data['student_id'],
+                    courses=data['courses'],
+                    phone_number=data['phone_number'],
+                    enrollment_date=data.get('enrollment_date', datetime.now()),
+                    document_file=file_data  # Store the binary document data here
+                )
+                
+                db.session.add(new_enrollment)
+                db.session.commit()
+                return new_enrollment.to_dict(), 201
+            
+            except Exception as e:
+                db.session.rollback()  # Rollback in case of error
+                return {"message": f"Error saving enrollment with document: {str(e)}"}, 500
+        else:
+            return {"message": "Missing document file"}, 400
+
 
 @enrollments_ns.route('/courses')
 class EnrollmentCoursesResource(Resource):
