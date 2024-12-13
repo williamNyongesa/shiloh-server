@@ -32,7 +32,8 @@ def create_app():
     migrate.init_app(app, db)
 
     # Apply CORS to the app
-    cors_origins = os.getenv('CORS_FILTER', 'http://localhost:3000,http://localhost:3001').split(',')
+    # integrate CORS filters for production enviroment.
+    # cors_origins = os.getenv('CORS_FILTER', 'http://localhost:3000,http://localhost:3001').split(',')
 
     # Enable CORS for the allowed origins
     CORS(app)
@@ -44,6 +45,8 @@ def create_app():
         teachers_ns,
         finances_ns,
         enrollments_ns,
+        events_ns,
+        quizzes_ns,
     )
 
     api.add_namespace(students_ns, path='/students')
@@ -51,6 +54,8 @@ def create_app():
     api.add_namespace(teachers_ns, path='/teachers')
     api.add_namespace(finances_ns, path='/finances')
     api.add_namespace(enrollments_ns, path='/enrollments')
+    api.add_namespace(events_ns,path='/events')
+    api.add_namespace(quizzes_ns,path='/quizess')
 
     return app
 

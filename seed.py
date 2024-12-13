@@ -1,5 +1,5 @@
 from app import db, app
-from app.models import Student, Finance, Teacher, User, Country, StudentIDCounter, Enrollment, Quiz, Question
+from app.models import Student, Finance, Teacher, User, Country, StudentIDCounter, Enrollment, Quiz, Question, Event
 from faker import Faker
 from datetime import datetime
 
@@ -228,14 +228,97 @@ def seed_quizzes():
 
     print("Quizzes seeded successfully.")
 
+# def client():
+#     app = create_app('testing')  # Create a test instance of the app
+#     with app.test_client() as client:
+#         with app.app_context():
+#             db.create_all()  # Set up the database schema
+#         yield client
+#         with app.app_context():
+#             db.drop_all()  # Clean up the database after tests
+
+# Seed data for events
+def seed_events():
+    events_data = [
+        {'title': 'Coding Bootcamp', 'location': 'New York', 'date': '2024-06-15'},
+        {'title': 'Music Concert', 'location': 'Los Angeles', 'date': '2024-07-20'},
+        {'title': 'Tech Conference', 'location': 'San Francisco', 'date': '2024-08-05'}
+    ]
+    
+    for event_data in events_data:
+        event = Event(
+            title=event_data['title'],
+            location=event_data['location'],
+            date=event_data['date']
+        )
+        db.session.add(event)
+    db.session.commit()
+
+    print("Events seeded successfully.")
+
+# Test: Get all events
+def test_get_all_events(client):
+    seed_events()  # Seed data into the database
+
+    response = client.get('/events')  # Replace with your actual endpoint
+    assert response.status_code == 200
+    events = response.get_json()
+    assert len(events) == 3
+    assert events[0]['title'] == 'Coding Bootcamp'
+    assert events[1]['location'] == 'Los Angeles'
+    assert events[2]['date'] == '2024-08-05'
+
+# Test: Get a specific event by ID
+def test_get_event_by_id(client):
+    seed_events()  # Seed data into the database
+
+    response = client.get('/events/1')  # Replace with your actual endpoint and event ID
+    assert response.status_code == 200
+    event = response.get_json()
+    assert event['title'] == 'Coding Bootcamp'
+    assert event['location'] == 'New York'
+
+# Test: Create a new event
+def test_create_event(client):
+    new_event = {
+        'title': 'AI Symposium',
+        'location': 'Las Vegas',
+        'date': '2024-09-15'
+    }
+    
+    response = client.post('/events', json=new_event)  # Replace with your actual endpoint
+    assert response.status_code == 201
+    event = response.get_json()
+    assert event['title'] == 'AI Symposium'
+    assert event['location'] == 'Las Vegas'
+    assert event['date'] == '2024-09-15'
+
+# Test: Delete an event
+def test_delete_event(client):
+    seed_events()  # Seed data into the database
+
+    response = client.delete('/events/1')  # Replace with your actual endpoint and event ID
+    assert response.status_code == 200
+    assert response.get_json()['message'] == 'Event deleted successfully.'
+
+    # Verify that the event has been deleted
+    response = client.get('/events/1')
+    assert response.status_code == 404  # Event should no longer exist
+
+
 if __name__ == "__main__":
     with app.app_context():
-        reset_database()
-        seed_countries()
-        seed_users()
-        seed_teachers()
-        seed_students()
-        seed_finance()
-        seed_student_id_counters() 
-        seed_enrollments()
-        seed_quizzes()
+        # reset_database()
+        # seed_countries()
+        # seed_users()
+        # seed_teachers()
+        # seed_students()
+        # seed_finance()
+        # seed_student_id_counters() 
+        # seed_enrollments()
+        # seed_quizzes()
+        seed_events()
+        # test_create_event()
+        # test_get_all_events()
+        # test_get_event_by_id()
+        # test_delete_event()

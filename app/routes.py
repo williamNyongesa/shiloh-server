@@ -3,26 +3,16 @@ from flask_bcrypt import Bcrypt
 from flask_restx import Namespace, Resource, reqparse
 from datetime import datetime
 from app import db
-from app.models import Student, User, Teacher, Finance, Enrollment
+from app.models import Student, User, Teacher, Finance, Enrollment, Event
 
+from werkzeug.utils import secure_filename
+import os
+from io import BytesIO
 from flask import request, jsonify
 from app import db
 from app.models import Quiz, Question  # Assuming Quiz and Question models exist
 # Initialize Bcrypt
 bcrypt = Bcrypt()
-
-# Quizzes Namespace
-quizzes_ns = Namespace('quizzes', description='Quiz management operations')
-
-# Quiz Parser (if needed)
-quiz_parser = reqparse.RequestParser()
-quiz_parser.add_argument('title', type=str, required=True, help='Title of the quiz')
-
-# Question Parser (if needed)
-question_parser = reqparse.RequestParser()
-question_parser.add_argument('text', type=str, required=True, help='Text of the question')
-question_parser.add_argument('options', type=str, required=True, help='Comma-separated options for the question')
-question_parser.add_argument('correct_answer', type=str, required=True, help='Correct answer for the question')
 
 # Namespaces
 students_ns = Namespace('students', description='Student management operations')
@@ -30,6 +20,8 @@ users_ns = Namespace('users', description='User management operations')
 teachers_ns = Namespace('teachers', description='Teacher management operations')
 finances_ns = Namespace('finances', description='Finance management operations')
 enrollments_ns = Namespace('enrollments', description='Enrollment management operations')
+quizzes_ns = Namespace('quizzes', description='Quiz management operations')
+events_ns = Namespace('events', description='Event related operations')
 
 # Parsers
 student_parser = reqparse.RequestParser()
@@ -63,6 +55,15 @@ enrollment_parser.add_argument('student_id', type=int, required=True, help='Stud
 enrollment_parser.add_argument('courses', type=str, required=True, help='Courses to enroll (comma-separated)')
 enrollment_parser.add_argument('phone_number', type=str, required=True, help='Phone number')
 enrollment_parser.add_argument('enrollment_date', type=datetime, required=False, help='Enrollment date (optional)')
+# Quiz Parser (if needed)
+quiz_parser = reqparse.RequestParser()
+quiz_parser.add_argument('title', type=str, required=True, help='Title of the quiz')
+
+# Question Parser (if needed)
+question_parser = reqparse.RequestParser()
+question_parser.add_argument('text', type=str, required=True, help='Text of the question')
+question_parser.add_argument('options', type=str, required=True, help='Comma-separated options for the question')
+question_parser.add_argument('correct_answer', type=str, required=True, help='Correct answer for the question')
 
 # Student Routes
 @students_ns.route('')
@@ -188,9 +189,6 @@ class FinanceListResource(Resource):
         return new_finance.to_dict(), 201
 
 # Enrollment Routes
-from werkzeug.utils import secure_filename
-import os
-from io import BytesIO
 
 @enrollments_ns.route('')
 class EnrollmentListResource(Resource):
@@ -337,8 +335,97 @@ class SubmitQuizResource(Resource):
                 if answers.get(question_id) == correct_answer:
                     score += 1
 
-            return jsonify({"score": score, "total": total_questions}), 200
+            return {"score": score, "total": total_questions}, 200
         except Exception as e:
-            return jsonify({"error": str(e)}), 500
+            return {"error": str(e)}, 500
+        
 
+@events_ns.route('')
+class EventListResource(Resource):
+    def get(self):
+        """Retrieve all events"""
+        events = Event.query.all()  # Retrieve all events from the database
+        return [event.to_dict() for event in events], 200
 
+    def post(self):
+        """Create a new event or update an existing one"""
+        try:
+            data = request.get_json()
+
+            title = data.get("title")
+            date = data.get("date")
+            description = data.get("description")
+            time = data.get("time")
+            location = data.get("location")
+
+            # Validate required fields
+            if not title or not date:
+                return {"error": "Title and date are required fields."}, 400
+
+            # Check if the event already exists by title and date
+            event = Event.query.filter_by(title=title, date=date).first()
+
+            if event:
+                # Update the existing event
+                event.description = description
+                event.time = time
+                event.location = location
+                db.session.commit()
+                return {"message": "Event updated successfully", "event": event.to_dict()}, 200
+            else:
+                # Create a new event
+                new_event = Event(
+                    title=title,
+                    date=date,
+                    description=description,
+                    time=time,
+                    location=location
+                )
+                db.session.add(new_event)
+                db.session.commit()
+                return {"message": "Event created successfully", "event": new_event.to_dict()}, 201
+
+        except Exception as e:
+            return {"error": str(e)}, 500
+
+@events_ns.route('/submit-event', methods=['POST'])
+class SubmitEventResource(Resource):
+    def post(self):
+        """Submit event data to create or update the event"""
+        try:
+            data = request.get_json()
+
+            title = data.get("title")
+            date = data.get("date")
+            description = data.get("description")
+            time = data.get("time")
+            location = data.get("location")
+
+            if not title or not date:
+                return {"error": "Title and date are required fields."}, 400
+
+            # Check if the event already exists by title and date
+            event = Event.query.filter_by(title=title, date=date).first()
+
+            if event:
+                # Update the existing event
+                event.description = description
+                event.time = time
+                event.location = location
+                db.session.commit()
+                return {"message": "Event updated successfully", "event": event.to_dict()}, 200
+            else:
+                # Create a new event
+                new_event = Event(
+                    title=title,
+                    date=date,
+                    description=description,
+                    time=time,
+                    location=location
+                )
+                db.session.add(new_event)
+                db.session.commit()
+                return {"message": "Event created successfully", "event": new_event.to_dict()}, 201
+
+        except Exception as e:
+            return {"error": str(e)}, 500

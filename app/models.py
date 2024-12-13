@@ -259,3 +259,22 @@ class Question(db.Model):
 
     def __repr__(self):
         return f'<Question {self.text}>'
+    
+class Event(db.Model):
+    __tablename__ = 'events'
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(255), nullable=False)
+    date = db.Column(db.Date, nullable=False)
+    description = db.Column(db.Text)
+    time = db.Column(db.String(50))
+    location = db.Column(db.String(255))
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "title": self.title,
+            "date": self.date.isoformat(),  # Format the date to string
+            "description": self.description,
+            "time": self.time,
+            "location": self.location
+        }
