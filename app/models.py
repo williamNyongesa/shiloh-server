@@ -122,6 +122,7 @@ class User(db.Model):
     username = db.Column(db.String(50), nullable=False, unique=True)
     _password = db.Column('password', db.String(255), nullable=False)
     role = db.Column(db.String(50), nullable=False)
+    user_profile_picture = db.Column(db.LargeBinary)
 
     @property
     def password(self):
@@ -218,7 +219,7 @@ class Enrollment(db.Model, SerializerMixin):
     courses = db.Column(db.String(255), nullable=False)  # e.g., "Math, Science, History"
     phone_number = db.Column(db.String(15), nullable=False)  # Phone number of the student
     enrollment_date = db.Column(db.DateTime, default=func.now())  # Defaults to current datetime
-    document_file = db.Column(db.LargeBinary)  # For storing the uploaded document
+    document_file = db.Column(db.LargeBinary)  # BYTEA or LargeBinary
 
     def __repr__(self):
         return f'<Enrollment {self.courses} for Student ID {self.student_id}>'
@@ -229,7 +230,6 @@ class Enrollment(db.Model, SerializerMixin):
             'courses': self.courses,
             'phone_number': self.phone_number,
             'enrollment_date': self.enrollment_date.isoformat(),
-            'document_file': self.document_file  # Optionally include the document file data
         }
 
 class Quiz(db.Model):

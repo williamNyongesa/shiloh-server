@@ -7,7 +7,7 @@ fake = Faker()
 
 def reset_database():
     with app.app_context():
-        db.drop_all()
+        # db.drop_all()
         db.create_all()
         print("Database reset successfully.")
 
@@ -168,7 +168,8 @@ def seed_student_id_counters():
 
 def seed_enrollments():
     students = Student.query.all()
-    courses_list = ["Math", "Science", "History", "English", "Geography", "Art"]
+    courses_list = ["Computer Science", "Psychology", "Philosophy", "Economics", "Political Science","Business Administration","Sociology", "Environmental Science", "Chemistry", "Physics", "Foreign Languages", "Music Theory","Engineering", "Linguistics", "Civics and Citizenship","Anthropology", "Health and Physical Education","Law and Legal Studies", "Theology/Religious Studies", "Social Studies", "Film Studies", "Architecture", "Journalism and Media Studies", "Psychiatry","Astronomy", "Mathematical Statistics", "Fashion Design", "Culinary Arts", "Graphic Design", "Cybersecurity"]
+
     
     enrollments = []
     
@@ -315,9 +316,9 @@ if __name__ == "__main__":
         # seed_students()
         # seed_finance()
         # seed_student_id_counters() 
-        # seed_enrollments()
+        seed_enrollments()
         # seed_quizzes()
-        seed_events()
+        # seed_events()
         # test_create_event()
         # test_get_all_events()
         # test_get_event_by_id()
