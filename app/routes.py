@@ -1,9 +1,10 @@
-from flask_jwt_extended import create_access_token
+from flask_jwt_extended import create_access_token, get_jwt_identity, jwt_required
 from flask_bcrypt import Bcrypt
 from flask_restx import Namespace, Resource, reqparse
 from datetime import datetime
 from app import db
 from app.models import Student, User, Teacher, Finance, Enrollment, Event, Quiz, Question
+from marshmallow import ValidationError
 
 from werkzeug.utils import secure_filename
 from werkzeug.exceptions import BadRequest
@@ -130,6 +131,28 @@ class UserListResource(Resource):
         db.session.add(new_user)
         db.session.commit()
         return new_user.to_dict(), 201
+    
+    @jwt_required() 
+    def put(self):
+        email = get_jwt_identity()
+        data = user_parser.parse_args()
+        user = User.query.filter_by(email=email).first() 
+        
+        if not user:
+            return {'error': 'User not found'}, 404
+       
+        if 'email' in data:
+            user.email = data['email']
+        if 'password' in data:
+            user.password = data['password'] 
+        
+        try:
+            db.session.commit()
+            return user.to_dict(), 200
+        except ValidationError as e:
+            return {'error': str(e)}, 400
+        except Exception as e:
+            return {'error': 'Failed to update user data'}, 500
 
 @users_ns.route('/login')
 class UserLoginResource(Resource):
@@ -145,7 +168,6 @@ class UserLoginResource(Resource):
                 'username': user.username,
                 'email': user.email,
                 'role': user.role,
-                'user_profile_picture':user.user_profile_picture,
             }, 200
         else:
             return {'error': 'Invalid username or password'}, 401

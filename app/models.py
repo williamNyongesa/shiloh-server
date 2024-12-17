@@ -1,3 +1,4 @@
+import base64
 from app import db, bcrypt
 from sqlalchemy_serializer import SerializerMixin
 from datetime import datetime
@@ -148,13 +149,20 @@ class User(db.Model):
         return f'{self.username} - {self.role}'
 
     def to_dict(self):
-        return {
+        user_data = {
             'id': self.id,
             'email': self.email,
             'username': self.username,
             'role': self.role
         }
+        
+        # Convert the profile picture to base64 string for easy use on the front-end
+        if self.user_profile_picture:
+            user_data['profile_picture'] = base64.b64encode(self.user_profile_picture).decode('utf-8')
+        else:
+            user_data['profile_picture'] = None
 
+        return user_data
 # Teacher Model
 class Teacher(db.Model, SerializerMixin):
     __tablename__ = 'teachers'
