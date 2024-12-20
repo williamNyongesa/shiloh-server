@@ -29,11 +29,16 @@ student_parser.add_argument('name', type=str, required=True, help='Name of the s
 student_parser.add_argument('email', type=str, required=True, help='Email of the student')
 student_parser.add_argument('phone_number', type=str, required=True, help='Phone number of the student')
 student_parser.add_argument('country_name', type=str, required=True, help='Country of the student')
-
 user_parser = reqparse.RequestParser()
-user_parser.add_argument('email', type=str, required=True, help='Email of the user')
-user_parser.add_argument('username', type=str, required=True, help='Username of the user')
-user_parser.add_argument('password', type=str, required=True, help='Password of the user')
+user_parser.add_argument('email', type=str, required=False, help='Email of the user')
+user_parser.add_argument('username', type=str, required=False, help='Username of the user')
+user_parser.add_argument('password', type=str, required=False, help='Password of the user')
+user_parser.add_argument('role', type=str, required=False, help='Role of the user')
+
+# user_parser = reqparse.RequestParser()
+# user_parser.add_argument('email', type=str, required=True, help='Email of the user')
+# user_parser.add_argument('username', type=str, required=True, help='Username of the user')
+# user_parser.add_argument('password', type=str, required=True, help='Password of the user')
 
 login_parser = reqparse.RequestParser()
 login_parser.add_argument('username', type=str, required=True, help='Username for login')
@@ -63,6 +68,14 @@ question_parser = reqparse.RequestParser()
 question_parser.add_argument('text', type=str, required=True, help='Text of the question')
 question_parser.add_argument('options', type=str, required=True, help='Comma-separated options for the question')
 question_parser.add_argument('correct_answer', type=str, required=True, help='Correct answer for the question')
+# def is_admin():
+#     user_id = get_jwt_identity()  
+#     user = User.query.get(user_id)  
+#     return user and user.role == 'admin'
+def is_admin():
+    claims = get_jwt_identity()  # Get all claims from the JWT token
+    print(claims)
+    return claims.get('role') == 'admin'
 
 @students_ns.route('')
 class StudentListResource(Resource):
@@ -112,11 +125,15 @@ class StudentResource(Resource):
         db.session.commit()
         return student.to_dict(), 200
 
+    @jwt_required()
     def delete(self, student_id):
         student = Student.query.get_or_404(student_id)
+        if not is_admin():
+            return {"message": "Admin privileges required."}, 403  # Forbidden
         db.session.delete(student)
         db.session.commit()
         return '', 204
+
 
 @users_ns.route('')
 class UserListResource(Resource):
@@ -132,7 +149,7 @@ class UserListResource(Resource):
         db.session.commit()
         return new_user.to_dict(), 201
     
-    @jwt_required() 
+    # @jwt_required() 
     def put(self):
         email = get_jwt_identity()
         data = user_parser.parse_args()
@@ -162,7 +179,7 @@ class UserLoginResource(Resource):
         password = data['password']
         user = User.query.filter_by(username=username).first()
         if user and bcrypt.check_password_hash(user._password, password):
-            access_token = create_access_token(identity=user.id)
+            access_token = create_access_token(identity=user.id, additional_claims={"role": user.role})
             return {
                 'access_token': access_token,
                 'username': user.username,
@@ -171,6 +188,42 @@ class UserLoginResource(Resource):
             }, 200
         else:
             return {'error': 'Invalid username or password'}, 401
+
+@users_ns.route('/<int:user_id>')
+class UserResource(Resource):
+    def get(self, user_id):
+        user = User.query.get_or_404(user_id)
+        return user.to_dict(), 200
+
+    # @jwt_required()
+    def put(self, user_id):
+        user = User.query.get_or_404(user_id)
+        data = user_parser.parse_args()
+        if 'username' in data:
+            user.username = data['username']
+        
+        if 'email' in data:
+            user.email = data['email']
+        
+        if 'role' in data:
+            user.role = data['role']
+        if 'password' in data and data['password']:
+            user.password = bcrypt.generate_password_hash(data['password']).decode('utf-8')
+        try:
+            db.session.commit()
+            return user.to_dict(), 200
+        except Exception as e:
+            db.session.rollback()
+            return {'error': f'Failed to update user: {str(e)}'}, 500
+
+
+    # @jwt_required()
+    def delete(self, user_id):
+        user = User.query.get_or_404(user_id)
+        db.session.delete(user)
+        db.session.commit()
+        return '', 204
+
 
 @teachers_ns.route('')
 class TeacherListResource(Resource):

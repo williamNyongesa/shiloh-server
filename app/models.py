@@ -73,6 +73,20 @@ class Student(db.Model, SerializerMixin):
         db.session.commit()
         
         return new_student
+    
+    def to_dict(self):
+        student_dict = {
+            'id': self.id,
+            'name': self.name,
+            'phone_number': self.phone_number,
+            'email': self.email,
+            'student_id': self.student_id,
+            'enrolled_date': self.enrolled_date.isoformat() if self.enrolled_date else None,
+            'country': self.country.name if self.country else None, 
+            'finances': [finance.to_dict() for finance in self.finances],
+            'teacher_id': self.teacher_id,
+        }
+        return student_dict
 
     def __repr__(self):
         return f'<Student {self.name}, {self.student_id}>'
