@@ -1,5 +1,5 @@
 from app import db, app
-from app.models import Student, Finance, Teacher, User, Country, StudentIDCounter, Enrollment
+from app.models import Student, Finance, Teacher, User, Country, StudentIDCounter, Enrollment, Quiz, Question, Event
 from faker import Faker
 from datetime import datetime
 
@@ -7,7 +7,7 @@ fake = Faker()
 
 def reset_database():
     with app.app_context():
-        db.drop_all()
+        # db.drop_all()
         db.create_all()
         print("Database reset successfully.")
 
@@ -38,55 +38,48 @@ def seed_countries():
     print("Countries seeded successfully.")
 
 def seed_users():
-    users = [
-        User(
-            email=fake.email(),
-            username=fake.user_name(),
-            role="admin"
-        ),
-        User(
-            email=fake.email(),
-            username=fake.user_name(),
-            role="teacher"
-        ),
-        User(
-            email=fake.email(),
-            username=fake.user_name(),
-            role="teacher"
-        ),
-        User(
-            email=fake.email(),
-            username=fake.user_name(),
-            role="student"
-        ),
-        User(
-            email=fake.email(),
-            username=fake.user_name(),
-            role="student"
-        )
+    users_data = [
+        {"email": fake.email(), "username": fake.user_name(), "role": "admin"},
+        {"email": fake.email(), "username": fake.user_name(), "role": "teacher"},
+        {"email": fake.email(), "username": fake.user_name(), "role": "teacher"},
+        {"email": fake.email(), "username": fake.user_name(), "role": "student"},
+        {"email": fake.email(), "username": fake.user_name(), "role": "student"}
     ]
-    
-    for user in users:
-        user.password = "defaultpassword"  # Setting a default password
 
-    db.session.add_all(users)
+    for data in users_data:
+        # Check if a user with the same email already exists
+        existing_user = User.query.filter_by(email=data["email"]).first()
+        
+        if existing_user is None:
+            new_user = User(
+                email=data["email"],
+                username=data["username"],
+                role=data["role"],
+                password="defaultpassword"  # Ensure all users get a default password
+            )
+            db.session.add(new_user)
+
     db.session.commit()
     print("Users seeded successfully.")
 
 def seed_teachers():
     teacher_users = User.query.filter_by(role="teacher").all()
-    
+
     teachers = []
     subjects = ["Mathematics", "Science", "Kiswahili", "History", "Geography", "English", "Physical Education"]
 
     for user in teacher_users:
-        teacher = Teacher(
-            name=fake.name(),
-            subject=fake.random_element(subjects),
-            hire_date=datetime.now(),
-            user_id=user.id
-        )
-        teachers.append(teacher)
+        # Check if the teacher with the same user_id already exists
+        existing_teacher = Teacher.query.filter_by(user_id=user.id).first()
+
+        if existing_teacher is None:
+            teacher = Teacher(
+                name=fake.name(),
+                subject=fake.random_element(subjects),
+                hire_date=datetime.now(),
+                user_id=user.id
+            )
+            teachers.append(teacher)
 
     db.session.add_all(teachers)
     db.session.commit()
@@ -106,89 +99,227 @@ def seed_students():
         country = fake.random_element(countries)
         teacher = fake.random_element(teachers)
 
-        student = Student(
-            name=fake.name(),
-            phone_number=fake.phone_number(),
-            email=user.email,
-            student_id=Student.generate_student_id(country.code, i),
-            enrolled_date=datetime.now(),
-            country_id=country.id,
-            user_id=user.id,
-            teacher_id=teacher.id
-        )
+        student_id = Student.generate_student_id(country.code, i)[:15]  # Ensure student_id fits within 15 chars
+        phone_number = fake.phone_number()[:15]  # Truncate phone number to 15 characters max
+        name = fake.name()[:50]  # Truncate name if longer than 50 characters
+        email = user.email[:100]  # Truncate email if longer than 100 characters
+
+        # Check if the student already exists in the database
+        existing_student = Student.query.filter_by(user_id=user.id).first()
         
-        students.append(student)
+        if existing_student is None:
+            student = Student(
+                name=name,
+                phone_number=phone_number,
+                email=email,
+                student_id=student_id,
+                enrolled_date=datetime.now(),
+                country_id=country.id,
+                user_id=user.id,
+                teacher_id=teacher.id
+            )
+            students.append(student)
 
     db.session.add_all(students)
     db.session.commit()
     print("Students seeded successfully.")
 
 def seed_finance():
-    students = Student.query.all()  # Fetch all students
-    users = User.query.filter_by(role="admin").all()  # Fetch admin users for handling finance records
-    
-    transaction_types = ['tuition', 'maintanance', 'fee']  
+    students = Student.query.all()
+    users = User.query.filter_by(role="admin").all()
+
+    transaction_types = ['tuition', 'maintanance', 'fee']
     finances = []
 
     for student in students:
-        for _ in range(fake.random_int(min=1, max=3)):  # Create 1 to 3 records per student
+        for _ in range(fake.random_int(min=1, max=3)):
             finance_record = Finance(
                 student_id=student.id,
-                user_id=fake.random_element(users).id, 
-                amount=fake.random_number(digits=4), 
-                transaction_type=fake.random_element(transaction_types),  
-                date=fake.date_time_this_year(),  
-                description=fake.sentence(nb_words=6)  
+                user_id=fake.random_element(users).id,
+                amount=fake.random_number(digits=4),
+                transaction_type=fake.random_element(transaction_types),
+                date=fake.date_time_this_year(),
+                description=fake.sentence(nb_words=6)
             )
             finances.append(finance_record)
 
     db.session.add_all(finances)
     db.session.commit()
     print("Finance records seeded successfully.")
+
 def seed_student_id_counters():
-    countries = Country.query.all()  # Fetch all countries from the database
+    countries = Country.query.all()
 
     student_id_counters = []
     for country in countries:
-        student_id_counter = StudentIDCounter(
-            country_id=country.id,
-            count=0  # Initialize count to 0
-        )
-        student_id_counters.append(student_id_counter)
+        # Check if counter already exists for the country
+        existing_counter = StudentIDCounter.query.filter_by(country_id=country.id).first()
+        
+        if existing_counter is None:
+            student_id_counter = StudentIDCounter(
+                country_id=country.id,
+                count=0  # Initializing counter
+            )
+            student_id_counters.append(student_id_counter)
 
     db.session.add_all(student_id_counters)
     db.session.commit()
     print("Student ID Counters seeded successfully.")
 
 def seed_enrollments():
-    with app.app_context():
-        students = Student.query.all()  # Fetch all students from the database
-        courses_list = ["Math", "Science", "History", "English", "Geography", "Art"]
+    students = Student.query.all()
+    courses_list = ["Computer Science", "Psychology", "Philosophy", "Economics", "Political Science","Business Administration","Sociology", "Environmental Science", "Chemistry", "Physics", "Foreign Languages", "Music Theory","Engineering", "Linguistics", "Civics and Citizenship","Anthropology", "Health and Physical Education","Law and Legal Studies", "Theology/Religious Studies", "Social Studies", "Film Studies", "Architecture", "Journalism and Media Studies", "Psychiatry","Astronomy", "Mathematical Statistics", "Fashion Design", "Culinary Arts", "Graphic Design", "Cybersecurity"]
 
-        enrollments = []
-
-        for student in students:
-            for _ in range(fake.random_int(min=1, max=3)):
-                courses = ", ".join(fake.random_elements(courses_list, unique=True, length=fake.random_int(min=1, max=3)))
+    
+    enrollments = []
+    
+    for student in students:
+        for _ in range(fake.random_int(min=1, max=3)):
+            courses = ", ".join(fake.random_elements(courses_list, unique=True, length=fake.random_int(min=1, max=3)))
+            
+            # Check if the student is already enrolled in these courses
+            existing_enrollment = Enrollment.query.filter_by(student_id=student.id, courses=courses).first()
+            
+            if existing_enrollment is None:
                 enrollment = Enrollment(
                     student_id=student.id,
                     courses=courses,
-                    phone_number=student.phone_number,  # Use student's phone number
-                    enrollment_date=fake.date_time_this_year()  # Random date this year
+                    phone_number=student.phone_number,
+                    enrollment_date=fake.date_time_this_year()
                 )
                 enrollments.append(enrollment)
 
-        db.session.add_all(enrollments)
+    db.session.add_all(enrollments)
+    db.session.commit()
+    print("Enrollments seeded successfully.")
+
+# Seed quizzes
+def seed_quizzes():
+    quizzes_data = [
+        {'title': 'Math Quiz', 'questions': [
+            {'text': 'What is 2 + 2?', 'options': '3,4,5,6', 'correct_answer': '4'},
+            {'text': 'What is 3 + 5?', 'options': '7,8,9,10', 'correct_answer': '8'}
+        ]},
+        {'title': 'Science Quiz', 'questions': [
+            {'text': 'What is the chemical symbol for water?', 'options': 'H2O,O2,CO2,H2O2', 'correct_answer': 'H2O'},
+            {'text': 'What planet is closest to the Sun?', 'options': 'Earth,Venus,Mars,Mercury', 'correct_answer': 'Mercury'}
+        ]},
+        {'title': 'History Quiz', 'questions': [
+            {'text': 'Who was the first president of the United States?', 'options': 'Abraham Lincoln,George Washington,Thomas Jefferson,Theodore Roosevelt', 'correct_answer': 'George Washington'},
+            {'text': 'In which year did World War II end?', 'options': '1940,1945,1950,1955', 'correct_answer': '1945'}
+        ]}
+    ]
+
+    for quiz_data in quizzes_data:
+        # Create a new quiz
+        quiz = Quiz(title=quiz_data['title'])
+        db.session.add(quiz)
+        db.session.commit()  # Commit to get the quiz ID for associating questions
+
+        for question_data in quiz_data['questions']:
+            question = Question(
+                text=question_data['text'],
+                options=question_data['options'],
+                correct_answer=question_data['correct_answer'],
+                quiz_id=quiz.id  # Link question to the quiz
+            )
+            db.session.add(question)
+        
         db.session.commit()
-        print("enrollments seeded successfully.")
+
+    print("Quizzes seeded successfully.")
+
+# def client():
+#     app = create_app('testing')  # Create a test instance of the app
+#     with app.test_client() as client:
+#         with app.app_context():
+#             db.create_all()  # Set up the database schema
+#         yield client
+#         with app.app_context():
+#             db.drop_all()  # Clean up the database after tests
+
+# Seed data for events
+def seed_events():
+    events_data = [
+        {'title': 'Coding Bootcamp', 'location': 'New York', 'date': '2024-06-15'},
+        {'title': 'Music Concert', 'location': 'Los Angeles', 'date': '2024-07-20'},
+        {'title': 'Tech Conference', 'location': 'San Francisco', 'date': '2024-08-05'}
+    ]
+    
+    for event_data in events_data:
+        event = Event(
+            title=event_data['title'],
+            location=event_data['location'],
+            date=event_data['date']
+        )
+        db.session.add(event)
+    db.session.commit()
+
+    print("Events seeded successfully.")
+
+# Test: Get all events
+def test_get_all_events(client):
+    seed_events()  # Seed data into the database
+
+    response = client.get('/events')  # Replace with your actual endpoint
+    assert response.status_code == 200
+    events = response.get_json()
+    assert len(events) == 3
+    assert events[0]['title'] == 'Coding Bootcamp'
+    assert events[1]['location'] == 'Los Angeles'
+    assert events[2]['date'] == '2024-08-05'
+
+# Test: Get a specific event by ID
+def test_get_event_by_id(client):
+    seed_events()  # Seed data into the database
+
+    response = client.get('/events/1')  # Replace with your actual endpoint and event ID
+    assert response.status_code == 200
+    event = response.get_json()
+    assert event['title'] == 'Coding Bootcamp'
+    assert event['location'] == 'New York'
+
+# Test: Create a new event
+def test_create_event(client):
+    new_event = {
+        'title': 'AI Symposium',
+        'location': 'Las Vegas',
+        'date': '2024-09-15'
+    }
+    
+    response = client.post('/events', json=new_event)  # Replace with your actual endpoint
+    assert response.status_code == 201
+    event = response.get_json()
+    assert event['title'] == 'AI Symposium'
+    assert event['location'] == 'Las Vegas'
+    assert event['date'] == '2024-09-15'
+
+# Test: Delete an event
+def test_delete_event(client):
+    seed_events()  # Seed data into the database
+
+    response = client.delete('/events/1')  # Replace with your actual endpoint and event ID
+    assert response.status_code == 200
+    assert response.get_json()['message'] == 'Event deleted successfully.'
+
+    # Verify that the event has been deleted
+    response = client.get('/events/1')
+    assert response.status_code == 404  # Event should no longer exist
+
 
 if __name__ == "__main__":
     with app.app_context():
-        reset_database()
-        seed_countries()
-        seed_users()
-        seed_teachers()
-        seed_students()
-        seed_finance()
-        seed_student_id_counters() 
+        # reset_database()
+        # seed_countries()
+        # seed_users()
+        # seed_teachers()
+        # seed_students()
+        # seed_finance()
+        # seed_student_id_counters() 
         seed_enrollments()
+        # seed_quizzes()
+        # seed_events()
+        # test_create_event()
+        # test_get_all_events()
+        # test_get_event_by_id()
+        # test_delete_event()
