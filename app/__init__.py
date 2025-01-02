@@ -61,8 +61,8 @@ def create_app():
     CORS(app)
 
     app.config.update(
-        CELERY_BROKER_URL='redis://localhost:6379/0',
-        CELERY_RESULT_BACKEND='redis://localhost:6379/0'
+        CELERY_BROKER_URL=Config.CELERY_BROKER_URL,
+        CELERY_RESULT_BACKEND=Config.CELERY_RESULT_BACKEND
     )
 
     celery = make_celery(app)
@@ -81,6 +81,7 @@ def create_app():
         communication_ns,
         reporting_ns,
         grades_ns,  # Add grades namespace
+        attendance_ns
     )
 
     api.add_namespace(students_ns, path='/students')
@@ -95,6 +96,8 @@ def create_app():
     api.add_namespace(communication_ns)
     api.add_namespace(reporting_ns)
     api.add_namespace(grades_ns, path='/grades')  # Register grades namespace
+    api.add_namespace(attendance_ns, path='/attendance')
+
 
     return app, celery
 
