@@ -83,7 +83,7 @@ user_parser.add_argument('role', type=str, required=False, help='Role of the use
 # user_parser.add_argument('password', type=str, required=True, help='Password of the user')
 
 login_parser = reqparse.RequestParser()
-login_parser.add_argument('username', type=str, required=True, help='Username for login')
+login_parser.add_argument('email', type=str, required=True, help='Email for login')
 login_parser.add_argument('password', type=str, required=True, help='Password for login')
 
 teacher_parser = reqparse.RequestParser()
@@ -286,7 +286,7 @@ class UserLoginResource(Resource):
         password = data['password']
         
         # Fetch the user by username
-        user = User.query.filter_by(username=email).first()
+        user = User.query.filter_by(email=email).first()
         if user and bcrypt.check_password_hash(user._password, password):
             # Generate both access token and refresh token
             access_token = create_access_token(identity=user.id, additional_claims={"role": user.role})
@@ -316,9 +316,7 @@ class UserLoginResource(Resource):
             
             return response, 200
         else:
-            return {'error': 'Invalid username or password'}, 401
-
-
+            return {'error': 'Invalid credentials. Please check your email and password.'}, 401
 
 
 @users_ns.route('/<int:user_id>')
