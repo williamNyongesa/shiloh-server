@@ -282,11 +282,11 @@ class UserLogoutResource(Resource):
 class UserLoginResource(Resource):
     def post(self):
         data = login_parser.parse_args()
-        username = data['username']
+        email = data['email']
         password = data['password']
         
         # Fetch the user by username
-        user = User.query.filter_by(username=username).first()
+        user = User.query.filter_by(username=email).first()
         if user and bcrypt.check_password_hash(user._password, password):
             # Generate both access token and refresh token
             access_token = create_access_token(identity=user.id, additional_claims={"role": user.role})
