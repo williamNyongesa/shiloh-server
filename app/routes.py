@@ -217,6 +217,7 @@ class UserListResource(Resource):
         email = data.get('email')
         username = data.get('username')
         password = data.get('password')
+        print(data)
 
         if not email or not username or not password:
             return {'message': 'Missing required fields'}, 400
@@ -225,8 +226,7 @@ class UserListResource(Resource):
         if existing_user:
             return {'message': 'User with this email already exists.'}, 400
 
-        new_user = User(email=email, username=username, role='user')
-        new_user.password = bcrypt.generate_password_hash(password).decode('utf-8')
+        new_user = User(email=email, username=username, role='user',password=password)
         db.session.add(new_user)
         db.session.commit()
 
@@ -284,10 +284,11 @@ class UserLoginResource(Resource):
         data = login_parser.parse_args()
         email = data['email']
         password = data['password']
+        print(data)
         
         # Fetch the user by username
-        user = User.query.filter_by(email=email).first()
-        if user and bcrypt.check_password_hash(user._password, password):
+        user = User.query.filter_by(email=email).first_or_404(description="email not found")
+        if user and user.check_password(password):
             # Generate both access token and refresh token
             access_token = create_access_token(identity=user.id, additional_claims={"role": user.role})
             refresh_token = create_refresh_token(identity=user.id)
@@ -352,7 +353,7 @@ class UserResource(Resource):
 
         
 
-    # @jwt_required()
+    @jwt_required()
     def put(self, user_id):
         user = User.query.get_or_404(user_id)
         data = user_parser.parse_args()
@@ -419,7 +420,7 @@ class TeacherListResource(Resource):
 
 @teachers_ns.route('/<int:teacher_id>')
 class TeacherResource(Resource):
-    # @jwt_required()  # Uncomment this if JWT authentication is required
+    @jwt_required()  # Uncomment this if JWT authentication is required
     def get(self, teacher_id):
         """Get a teacher by their ID."""
         teacher = Teacher.query.get(teacher_id)
@@ -432,7 +433,7 @@ class TeacherResource(Resource):
 @finances_ns.route('')
 class FinanceListResource(Resource):
 
-    # @jwt_required()   
+    @jwt_required()   
     def get(self):
         finances = Finance.query.all()
         return [finance.to_dict() for finance in finances], 200
