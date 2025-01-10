@@ -4,7 +4,7 @@ from flask_bcrypt import Bcrypt
 from flask_restx import Namespace, Resource, reqparse
 from datetime import datetime
 from app import db
-from app.models import FileUpload, Student, User, Teacher, Finance, Enrollment, Event, Quiz, Question, ClassSchedule, Invoice, Payment, Notification, Grade, send_sms
+from app.models import Attendance, FileUpload, Student, User, Teacher, Finance, Enrollment, Event, Quiz, Question, ClassSchedule, Invoice, Payment, Notification, Grade, send_sms
 from marshmallow import ValidationError
 
 from werkzeug.utils import secure_filename
@@ -83,7 +83,7 @@ user_parser.add_argument('role', type=str, required=False, help='Role of the use
 # user_parser.add_argument('password', type=str, required=True, help='Password of the user')
 
 login_parser = reqparse.RequestParser()
-login_parser.add_argument('username', type=str, required=True, help='Username for login')
+login_parser.add_argument('email', type=str, required=True, help='Email for login')
 login_parser.add_argument('password', type=str, required=True, help='Password for login')
 
 teacher_parser = reqparse.RequestParser()
@@ -217,6 +217,7 @@ class UserListResource(Resource):
         email = data.get('email')
         username = data.get('username')
         password = data.get('password')
+        print(data)
 
         if not email or not username or not password:
             return {'message': 'Missing required fields'}, 400
@@ -225,8 +226,7 @@ class UserListResource(Resource):
         if existing_user:
             return {'message': 'User with this email already exists.'}, 400
 
-        new_user = User(email=email, username=username, role='user')
-        new_user.password = bcrypt.generate_password_hash(password).decode('utf-8')
+        new_user = User(email=email, username=username, role='user',password=password)
         db.session.add(new_user)
         db.session.commit()
 
@@ -282,12 +282,13 @@ class UserLogoutResource(Resource):
 class UserLoginResource(Resource):
     def post(self):
         data = login_parser.parse_args()
-        username = data['username']
+        email = data['email']
         password = data['password']
+        print(data)
         
         # Fetch the user by username
-        user = User.query.filter_by(username=username).first()
-        if user and bcrypt.check_password_hash(user._password, password):
+        user = User.query.filter_by(email=email).first_or_404(description="email not found")
+        if user and user.check_password(password):
             # Generate both access token and refresh token
             access_token = create_access_token(identity=user.id, additional_claims={"role": user.role})
             refresh_token = create_refresh_token(identity=user.id)
@@ -307,18 +308,50 @@ class UserLoginResource(Resource):
                     # Include student data in the response
                     response['student'] = student.to_dict()
             
+            # Check if the user is a teacher and add the teacher data if role is "teacher"
+            if user.role == 'teacher':
+                teacher = Teacher.query.filter_by(user_id=user.id).first()
+                if teacher:
+                    # Include teacher data in the response
+                    response['teacher'] = teacher.to_dict()
+            
             return response, 200
         else:
-            return {'error': 'Invalid username or password'}, 401
-
+            return {'error': 'Invalid credentials. Please check your email and password.'}, 401
 
 
 @users_ns.route('/<int:user_id>')
 class UserResource(Resource):
     @jwt_required()
     def get(self, user_id):
-        user = User.query.get_or_404(user_id,"user does not exist")
-        return user.to_dict(), 200
+        # Fetch the user or return a 404 error if the user does not exist
+        user = User.query.get_or_404(user_id, "User does not exist")
+        
+        # Create the base response with user data
+        response = {
+            'user': user.to_dict()  # Convert the user object to a dictionary
+        }
+
+        # Add role-specific data
+        if user.role == 'student':
+            student = Student.query.filter_by(email=user.email).first()
+            if student:
+                response['role_data'] = {
+                    'role': 'student',
+                    'details': student.to_dict()  # Convert student object to dictionary
+                }
+        
+        elif user.role == 'teacher':
+            teacher = Teacher.query.filter_by(user_id=user.id).first()
+            if teacher:
+                response['role_data'] = {
+                    'role': 'teacher',
+                    'details': teacher.to_dict()  # Convert teacher object to dictionary
+                }
+
+        return response, 200
+
+        
 
     @jwt_required()
     def put(self, user_id):
@@ -372,7 +405,7 @@ class UserResource(Resource):
 
 @teachers_ns.route('')
 class TeacherListResource(Resource):
-    @jwt_required()
+    # @jwt_required()
     def get(self):
         teachers = Teacher.query.all()
         return [teacher.to_dict() for teacher in teachers], 200
@@ -385,10 +418,22 @@ class TeacherListResource(Resource):
         db.session.commit()
         return new_teacher.to_dict(), 201
 
+@teachers_ns.route('/<int:teacher_id>')
+class TeacherResource(Resource):
+    @jwt_required()  # Uncomment this if JWT authentication is required
+    def get(self, teacher_id):
+        """Get a teacher by their ID."""
+        teacher = Teacher.query.get(teacher_id)
+        if teacher:
+            return teacher.to_dict(), 200
+        else:
+            return {"message": "Teacher not found"}, 404
+
+
 @finances_ns.route('')
 class FinanceListResource(Resource):
 
-    @jwt_required()
+    @jwt_required()   
     def get(self):
         finances = Finance.query.all()
         return [finance.to_dict() for finance in finances], 200
@@ -622,7 +667,7 @@ def allowed_file(filename):
 
 @users_ns.route('/upload')
 class FileUploadResource(Resource):
-    @jwt_required()  # Optional: Only allow authenticated users to upload
+    # @jwt_required()  # Optional: Only allow authenticated users to upload
     def post(self):
         # Check if a file is part of the request
         if 'file' not in request.files:
@@ -652,7 +697,7 @@ class FileUploadResource(Resource):
             # Add the new file record to the database session
             db.session.add(new_file)
             db.session.commit()
-
+            file.close()
             return {"message": f"File '{filename}' uploaded successfully."}, 201
 
         except Exception as e:
@@ -825,3 +870,92 @@ class GradeResource(Resource):
         db.session.add(new_grade)
         db.session.commit()
         return new_grade.to_dict(), 201
+attendance_ns = Namespace('attendance', description='Attendance Management')
+
+attendance_parser = reqparse.RequestParser()
+attendance_parser.add_argument('student_id', type=int, required=True, help='Student ID is required')
+attendance_parser.add_argument('status', type=str, required=True, choices=('Present', 'Absent', 'Late'), help='Status is required')
+attendance_parser.add_argument('course', type=str, required=True, help='Course is required')  # Add this line
+
+
+report_parser = reqparse.RequestParser()
+report_parser.add_argument('start_date', type=str, required=False, help='Start date in YYYY-MM-DD format')
+report_parser.add_argument('end_date', type=str, required=False, help='End date in YYYY-MM-DD format')
+
+@attendance_ns.route('')
+class AttendanceResource(Resource):
+    def post(self):
+        """Mark attendance for a student by course."""
+        data = attendance_parser.parse_args()
+
+        # Validate if the student is enrolled in the specified course
+        student_id = data['student_id']
+        course = data['course']
+
+        enrollment = Enrollment.query.filter_by(student_id=student_id).filter(Enrollment.courses.contains(course)).first()
+        if not enrollment:
+            return {'message': f'Student ID {student_id} is not enrolled in course {course}'}, 404
+
+        try:
+            attendance = Attendance(
+                student_id=student_id,
+                course=course,
+                date=datetime.utcnow().date(),
+                status=data['status']
+            )
+            db.session.add(attendance)
+            db.session.commit()
+            return {'message': 'Attendance marked', 'attendance': attendance.to_dict()}, 201
+        except Exception as e:
+            db.session.rollback()
+            return {'message': f'Error marking attendance: {str(e)}'}, 500
+
+
+@attendance_ns.route('/report')
+class AttendanceReportResource(Resource):
+    def get(self):
+        """Generate attendance reports within a specified date range."""
+        args = reqparse.RequestParser()
+        args.add_argument('start_date', type=str, required=False, help="Start date in 'YYYY-MM-DD' format.")
+        args.add_argument('end_date', type=str, required=False, help="End date in 'YYYY-MM-DD' format.")
+        parsed_args = args.parse_args()
+
+        start_date = (
+            datetime.strptime(parsed_args.get('start_date'), '%Y-%m-%d') 
+            if parsed_args.get('start_date') else None
+        )
+        end_date = (
+            datetime.strptime(parsed_args.get('end_date'), '%Y-%m-%d') 
+            if parsed_args.get('end_date') else None
+        )
+
+        query = Attendance.query
+        if start_date:
+            query = query.filter(Attendance.date >= start_date)
+        if end_date:
+            query = query.filter(Attendance.date <= end_date)
+
+        attendance_records = query.all()
+        return [record.to_dict() for record in attendance_records], 200
+
+
+@attendance_ns.route('/students_by_course')
+class StudentsByCourseResource(Resource):
+    def get(self):
+        """Get all students who have attendance records for a specific course."""
+        args = reqparse.RequestParser()
+        args.add_argument('course', type=str, required=True, help="Course name is required.")
+        parsed_args = args.parse_args()
+        course_name = parsed_args.get('course')
+
+        # Fetch attendance records for the specific course
+        attendance_records = Attendance.query.filter(Attendance.course.ilike(f'%{course_name}%')).all()
+        
+        # Extract unique student IDs from attendance records
+        student_ids = {record.student_id for record in attendance_records}
+
+        # Query students by the extracted IDs
+        students = Student.query.filter(Student.id.in_(student_ids)).all()
+
+        # Return the student data as a list of dictionaries
+        return [student.to_dict() for student in students], 200

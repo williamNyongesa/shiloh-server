@@ -3,18 +3,18 @@ from app import db, bcrypt
 from sqlalchemy_serializer import SerializerMixin
 from datetime import datetime
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy import func
+from sqlalchemy import Table, func
 from flask_mail import Mail, Message
 
-# Student Model
+
 class Student(db.Model, SerializerMixin):
     __tablename__ = 'students'
     serialize_rules = ('-country', '-user', '-teacher', '-finances', '-first_name', '-middle_name', '-last_name')
 
-    # Primary key
+    
     id = db.Column(db.Integer, primary_key=True)
 
-    # Basic information fields
+    
     name = db.Column(db.String(100), nullable=True)
     first_name = db.Column(db.String(100), nullable=True)
     middle_name = db.Column(db.String(100), nullable=True)
@@ -23,52 +23,52 @@ class Student(db.Model, SerializerMixin):
     email = db.Column(db.String(120), unique=True, nullable=False)
     student_id = db.Column(db.String(20), unique=True, nullable=False)
 
-    # Enrollment date, defaults to the current UTC datetime
+    
     enrolled_date = db.Column(db.DateTime, default=func.now())
 
-    # Foreign key to Country model
+    
     country_id = db.Column(db.Integer, db.ForeignKey('countries.id'), nullable=False)
     country = db.relationship('Country', back_populates='students')
 
-    # Foreign key to User model
+    
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), unique=True)
     user = db.relationship('User', backref='student', uselist=False)
 
     teacher_id = db.Column(db.Integer, db.ForeignKey('teachers.id'), nullable=True)  
     teacher = db.relationship('Teacher', back_populates='students')
 
-    # Relationship with Finance model
+    
     finances = db.relationship('Finance', back_populates='student')
     enrollments = db.relationship('Enrollment', back_populates='student', cascade='all, delete-orphan')
 
-    # Static method to generate unique student ID
+    
     @staticmethod
     def generate_student_id(country_code, count):
         """Generates a student ID using the country code and student count."""
         return f"{country_code}{str(count).zfill(3)}"
 
-    # Class method to create a student with a unique ID
+    
     @classmethod
     def create_with_unique_id(cls, first_name, middle_name, last_name, phone_number, email, country_name, password):
         """Create a student with a unique ID based on the country."""
-            # List all available countries for debugging or selection
+            
         available_countries = Country.query.all()
         country_names = [country.name for country in available_countries]
         country_name = country_name.strip().lower()
 
-        # Fetch the country (using ilike for case-insensitive search and normalize input)
-        country = Country.query.filter(Country.name.ilike(country_name)).first()  # 'ilike' for case-insensitive search
         
-        # Debugging: log the query result
+        country = Country.query.filter(Country.name.ilike(country_name)).first()  
+        
+        
         if country:
             print(f"Found country: {country.name}")
         else:
             print(f"Country not found for: {country_name}")
         if not country:
-            # Provide the list of available countries if the selected country is not found
+            
             raise ValueError(f"Invalid country name provided. Available countries are: {', '.join(country_names)}")
             
-        # Create or update the student ID counter
+        
         counter = StudentIDCounter.query.filter_by(country_id=country.id).first()
         if not counter:
             counter = StudentIDCounter(country_id=country.id, count=1)
@@ -76,39 +76,39 @@ class Student(db.Model, SerializerMixin):
         else:
             counter.count += 1
 
-        # Commit the transaction to update the counter
+        
         try:
             db.session.commit()
         except IntegrityError:
             db.session.rollback()
             raise ValueError("Failed to generate a unique student ID.")
 
-        # Generate the student ID
+        
         student_id = cls.generate_student_id(country.code, counter.count)
 
-        # Create a new User object for the student (responsible for password)
+        
         user = User(
             email=email,
-            username=email.split('@')[0],  # Use the part before the '@' as username, or customize as needed
-            password=password,  # Set the password securely (bcrypt will hash it)
-            role='student'  # Set a default role for students
+            username=email.split('@')[0],  
+            password=password,  
+            role='student'  
         )
         print(user)
-        # Add the user to the session
+        
         db.session.add(user)
-        db.session.commit()  # Commit to get the user_id for the student
+        db.session.commit()  
 
-        # Create a new Student instance
+        
         new_student = cls(
             first_name=first_name,
             middle_name=middle_name,
             last_name=last_name,
-            name=f"{first_name} {last_name}",  # Set 'name' by combining first and last name
+            name=f"{first_name} {last_name}",  
             phone_number=phone_number,
             email=email,
             student_id=student_id,
             country=country,
-            user=user  # Associate this student with the user
+            user=user  
         )
 
         db.session.add(new_student)
@@ -131,48 +131,48 @@ class Student(db.Model, SerializerMixin):
             'country': self.country.name if self.country else None,
             'user_id': self.user_id,
             'teacher_id': self.teacher_id,
-            'teacher': self.teacher.name if self.teacher else None,  # Assuming teacher has a 'name' attribute
-            'finances': [finance.to_dict() for finance in self.finances],  # Assuming 'to_dict()' exists on Finance model
-            'enrollments': [enrollment.to_dict() for enrollment in self.enrollments]  # Assuming 'to_dict()' exists on Enrollment model
+            'teacher': self.teacher.name if self.teacher else None,  
+            'finances': [finance.to_dict() for finance in self.finances],  
+            'enrollments': [enrollment.to_dict() for enrollment in self.enrollments]  
         }
 
 
-# Country Model
+
 class Country(db.Model, SerializerMixin):
     __tablename__ = 'countries'
-    serialize_rules = ('-students',)  # Serialization rules to avoid circular references
+    serialize_rules = ('-students',)  
 
-    # Primary key
+    
     id = db.Column(db.Integer, primary_key=True)
 
-    # Name and country code
+    
     name = db.Column(db.String(50), unique=True, nullable=False)
-    code = db.Column(db.String(2), unique=True, nullable=False)  # KE, US, etc.
+    code = db.Column(db.String(2), unique=True, nullable=False)  
 
-    # Relationship with Student model
+    
     students = db.relationship('Student', back_populates='country')
 
     def __repr__(self):
         return f"<Country {self.name} ({self.code})>"
 
-# StudentIDCounter Model
+
 class StudentIDCounter(db.Model, SerializerMixin):
     __tablename__ = 'student_id_counters'
 
-    # Primary key
+    
     id = db.Column(db.Integer, primary_key=True)
 
-    # Country ID and count of students for unique ID generation
+    
     country_id = db.Column(db.Integer, db.ForeignKey('countries.id'), nullable=False, unique=True)
     count = db.Column(db.Integer, default=0, nullable=False)
 
-    # Relationship with Country model
+    
     country = db.relationship('Country')
 
     def __repr__(self):
         return f"<StudentIDCounter {self.country.code} - {self.count}>"
 
-# User Model
+
 class User(db.Model):
     __tablename__ = 'users'
     
@@ -191,15 +191,14 @@ class User(db.Model):
 
     @password.setter
     def password(self, password):
-        # Hash password securely using bcrypt
         self._password = bcrypt.generate_password_hash(password).decode('utf-8')
 
     def check_password(self, password):
-        # Use bcrypt's check_password_hash directly to compare the hashes
+        
         return bcrypt.check_password_hash(self._password, password)
     
     def generate_password_hash(self, password):
-        # This method is not necessary for checking the password, but it's fine to keep for future use
+        
         return bcrypt.generate_password_hash(password).decode('utf-8')
 
     def __repr__(self):
@@ -216,99 +215,85 @@ class User(db.Model):
             'role': self.role
         }
         
-        # Convert the profile picture to base64 string for easy use on the front-end
+        
         if self.user_profile_picture:
             user_data['profile_picture'] = base64.b64encode(self.user_profile_picture).decode('utf-8')
         else:
             user_data['profile_picture'] = None
 
         return user_data
-# Teacher Model
-class Teacher(db.Model, SerializerMixin):
-    __tablename__ = 'teachers'
-    serialize_rules = ('-user', '-students')  # Serialization rules to avoid circular references
-
-    # Primary key
-    id = db.Column(db.Integer, primary_key=True)
-
-    # Teacher's name, subject expertise, and hire date
-    name = db.Column(db.String(100), nullable=False)
-    subject = db.Column(db.String(50), nullable=False)
-    hire_date = db.Column(db.DateTime, default=func.now())
-
-    # Foreign key to User model (one-to-one relationship)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), unique=True)
-    user = db.relationship('User', backref='teacher', uselist=False)
-
-    # Relationship with Student model (one-to-many relationship)
-    students = db.relationship('Student', back_populates='teacher')  # back_populates links with Student model
 
 
-    def __repr__(self):
-        return f'<Teacher {self.name} - {self.subject}>'
-
-# Finance Model
 class Finance(db.Model, SerializerMixin):
     __tablename__ = 'finances'
-    serialize_rules = ('-student', '-user')  # Serialization rules to avoid circular references
+    serialize_rules = ('-student', '-user')  
 
-    # Primary key
+    
     id = db.Column(db.Integer, primary_key=True)
 
-    # Foreign key to Student model
+    
     student_id = db.Column(db.Integer, db.ForeignKey('students.id'), nullable=False)
     student = db.relationship('Student', back_populates='finances')
 
-    # Foreign key to User model (optional, if you want to track who handled the finance record)
+    
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     user = db.relationship('User', backref='finances')
 
-    # Financial details
-    amount = db.Column(db.Float, nullable=False)  # Amount of the transaction
-    transaction_type = db.Column(db.String(50), nullable=False)  # e.g., 'tuition', 'payment', 'fee'
-    date = db.Column(db.DateTime, default=func.now())  # Date of the transaction
-    description = db.Column(db.String(255))  # Optional description for the transaction
+    
+    amount = db.Column(db.Float, nullable=False)  
+    transaction_type = db.Column(db.String(50), nullable=False)  
+    date = db.Column(db.DateTime, default=func.now())  
+    description = db.Column(db.String(255))  
 
     def __repr__(self):
         return f'<Finance Record: {self.transaction_type} - Amount: {self.amount} for Student ID: {self.student_id}>'
 
-# Enrollment Model
+
 class Enrollment(db.Model, SerializerMixin):
     __tablename__ = 'enrollments'
-    serialize_rules = ('-student',)  # Avoid circular references during serialization
+    serialize_rules = ('-student',)  
 
-    # Primary key
+    
     id = db.Column(db.Integer, primary_key=True)
 
-    # Foreign key to the Student model
+    
     student_id = db.Column(db.Integer, db.ForeignKey('students.id'), nullable=False)
     student = db.relationship('Student', back_populates='enrollments')
+    courses = db.Column(db.String(255), nullable=False) 
 
-    # Attributes
-    courses = db.Column(db.String(255), nullable=False)  # e.g., "Math, Science, History"
-    phone_number = db.Column(db.String(15), nullable=False)  # Phone number of the student
-    enrollment_date = db.Column(db.DateTime, default=func.now())  # Defaults to current datetime
-    document_file = db.Column(db.LargeBinary)  # BYTEA or LargeBinary
+    
+    teachers = db.relationship(
+        'Teacher', 
+        secondary='enrollment_teacher_association', 
+        back_populates='enrollments'
+    )
+
+    
+    phone_number = db.Column(db.String(15), nullable=False)
+    enrollment_date = db.Column(db.DateTime, default=func.now())
+    document_file = db.Column(db.LargeBinary)
 
     def __repr__(self):
-        return f'<Enrollment {self.courses} for Student ID {self.student_id}>'
+        return f'<Enrollment {self.id} for Student ID {self.student_id}>'
+
     def to_dict(self):
         return {
             'id': self.id,
             'student_id': self.student_id,
-            'courses': self.courses,
+            'teachers': [teacher.to_dict() for teacher in self.teachers],
             'phone_number': self.phone_number,
             'enrollment_date': self.enrollment_date.isoformat(),
         }
 
+
 class Quiz(db.Model):
     __tablename__ = 'quizzes'
 
-    # Primary key
+    
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(255), nullable=False)
 
-    # One-to-many relationship with Question model
+    
     questions = db.relationship('Question', backref='quiz', lazy=True)
 
     def __repr__(self):
@@ -324,14 +309,14 @@ class Quiz(db.Model):
 class Question(db.Model):
     __tablename__ = 'questions'
 
-    # Primary key
+    
     id = db.Column(db.Integer, primary_key=True)
 
-    # Question attributes
-    text = db.Column(db.String(255), nullable=False)  # The question text
-    options = db.Column(db.String(255), nullable=False)  # Store options as a comma-separated string
-    correct_answer = db.Column(db.String(255), nullable=True)  # The correct answer
-    quiz_id = db.Column(db.Integer, db.ForeignKey('quizzes.id'), nullable=False)  # Foreign key to Quiz
+    
+    text = db.Column(db.String(255), nullable=False)  
+    options = db.Column(db.String(255), nullable=False)  
+    correct_answer = db.Column(db.String(255), nullable=True)  
+    quiz_id = db.Column(db.Integer, db.ForeignKey('quizzes.id'), nullable=False)  
 
     def __repr__(self):
         return f'<Question {self.text}>'
@@ -349,7 +334,7 @@ class Event(db.Model):
         return {
             "id": self.id,
             "title": self.title,
-            "date": self.date.isoformat(),  # Format the date to string
+            "date": self.date.isoformat(),  
             "description": self.description,
             "time": self.time,
             "location": self.location
@@ -359,10 +344,10 @@ class FileUpload(db.Model):
     __tablename__ = 'file_uploads'
     
     id = db.Column(db.Integer, primary_key=True)
-    filename = db.Column(db.String(255), nullable=False)  # Store the original filename
-    file_type = db.Column(db.String(50), nullable=False)  # Store the file type (e.g., 'csv', 'xlsx')
-    file_data = db.Column(db.LargeBinary, nullable=False)  # Store the actual file data as binary
-    upload_time = db.Column(db.DateTime, default=lambda: datetime.now(datetime.timezone.utc))  # Store the upload timestamp
+    filename = db.Column(db.String(255), nullable=False)  
+    file_type = db.Column(db.String(50), nullable=False)  
+    file_data = db.Column(db.LargeBinary, nullable=False)  
+    upload_time = db.Column(db.DateTime, default=func.now())  
     
     def __init__(self, filename, file_type, file_data):
         self.filename = filename
@@ -464,7 +449,23 @@ class Grade(db.Model, SerializerMixin):
             'date_recorded': self.date_recorded.isoformat()
         }
 
-# Helper functions for communication tools
+class Attendance(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    student_id = db.Column(db.Integer, db.ForeignKey('students.id'), nullable=False)
+    course = db.Column(db.String(255), nullable=False)  
+    date = db.Column(db.Date, default=func.now(), nullable=False)
+    status = db.Column(db.String(20), nullable=False)  
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "student_id": self.student_id,
+            "course": self.course,
+            "date": self.date.strftime('%Y-%m-%d'),
+            "status": self.status,
+        }
+
+
 def send_email(recipient, message):
     mail = Mail()
     msg = Message(
@@ -476,5 +477,140 @@ def send_email(recipient, message):
     mail.send(msg)
 
 def send_sms(recipient, message):
-    # Implement SMS sending logic here
+    
     pass
+
+
+teacher_course_association = Table(
+    'teacher_course_association',
+    db.Model.metadata,
+    db.Column('teacher_id', db.Integer, db.ForeignKey('teachers.id'), primary_key=True),
+    db.Column('course_id', db.Integer, db.ForeignKey('courses.id'), primary_key=True)
+)
+
+
+class Course(db.Model, SerializerMixin):
+    __tablename__ = 'courses'
+    serialize_rules = ('-enrollments', '-teachers')  
+
+    
+    id = db.Column(db.Integer, primary_key=True)
+
+    
+    name = db.Column(db.String(100), nullable=False)
+    description = db.Column(db.String(255))
+
+    
+    enrollments = db.relationship('Enrollment', back_populates='course')
+
+    
+    teachers = db.relationship(
+        'Teacher',
+        secondary=teacher_course_association,
+        back_populates='courses'
+    )
+
+    def __repr__(self):
+        return f'<Course {self.name}>'
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'description': self.description,
+            'teachers': [teacher.to_dict() for teacher in self.teachers],
+        }
+
+
+
+enrollment_teacher_association = db.Table('enrollment_teacher_association',
+    db.Column('enrollment_id', db.Integer, db.ForeignKey('enrollments.id'), primary_key=True),
+    db.Column('teacher_id', db.Integer, db.ForeignKey('teachers.id'), primary_key=True)
+)
+
+class Enrollment(db.Model, SerializerMixin):
+    __tablename__ = 'enrollments'
+    __table_args__ = {'extend_existing': True}
+
+    serialize_rules = ('-student',)  
+
+    
+    id = db.Column(db.Integer, primary_key=True)
+
+    
+    student_id = db.Column(db.Integer, db.ForeignKey('students.id'), nullable=False)
+    student = db.relationship('Student', back_populates='enrollments')
+
+    
+    teachers = db.relationship(
+        'Teacher', 
+        secondary=enrollment_teacher_association, 
+        back_populates='enrollments'
+    )
+
+    
+    course_id = db.Column(db.Integer, db.ForeignKey('courses.id'), nullable=True)
+    course = db.relationship('Course', back_populates='enrollments')
+
+    
+    phone_number = db.Column(db.String(15), nullable=False)
+    enrollment_date = db.Column(db.DateTime, default=func.now())
+    document_file = db.Column(db.LargeBinary)
+
+    def __repr__(self):
+        return f'<Enrollment {self.id} for Student ID {self.student_id}>'
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'student_id': self.student_id,
+            'teachers': [teacher.to_dict() for teacher in self.teachers],
+            'course': self.course.to_dict() if self.course else None,
+            'phone_number': self.phone_number,
+            'enrollment_date': self.enrollment_date.isoformat(),
+        }
+
+class Teacher(db.Model, SerializerMixin):
+    __tablename__ = 'teachers'
+    serialize_rules = ('-user', '-students', '-courses')  
+
+    
+    id = db.Column(db.Integer, primary_key=True)
+
+    
+    name = db.Column(db.String(100), nullable=False)
+    subject = db.Column(db.String(50), nullable=False)
+    hire_date = db.Column(db.DateTime, default=func.now())
+
+    
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), unique=True)
+    user = db.relationship('User', backref='teacher', uselist=False)
+
+    
+    students = db.relationship('Student', back_populates='teacher')
+
+    
+    enrollments = db.relationship(
+        'Enrollment',
+        secondary=enrollment_teacher_association,
+        back_populates='teachers'
+    )
+
+    
+    courses = db.relationship(
+        'Course',
+        secondary=teacher_course_association,
+        back_populates='teachers'
+    )
+
+    def __repr__(self):
+        return f'<Teacher {self.name} - {self.subject}>'
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'subject': self.subject,
+            'hire_date': self.hire_date.isoformat(),
+            'courses': [course.to_dict() for course in self.courses],
+        }
