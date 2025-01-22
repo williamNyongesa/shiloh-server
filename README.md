@@ -2,4 +2,4 @@
 This is an application that runs a school system. <br>
 For more view of the please visit [`shiloh-api`](https://shiloh-server.onrender.com/)
 ## Database Relationship
-[`database-pic`](!https://shiloh-server.onrender.com/)
+![`database-pic`](./defaultdbpublic.png)
